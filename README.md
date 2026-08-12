@@ -27,6 +27,15 @@ make gate      # 재생 + 분기 게이트. 중복 발견 시 exit 1
 
 ---
 
+## 아키텍처
+
+![Backstop architecture](docs/architecture.png)
+
+원본: [`docs/architecture.svg`](docs/architecture.svg) — 폰트를 포함한 단일 파일이라
+어디서 열어도 동일하게 렌더된다. `uv run python scripts/make_diagram.py` 로 재생성한다.
+
+---
+
 ## 데이터 모델 (Firestore)
 
 컬렉션 4개. 필드는 필요할 때 붙인다.

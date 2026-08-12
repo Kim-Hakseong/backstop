@@ -63,9 +63,9 @@ Agent Registry에 등록된 조직 내 여러 에이전트의 원장을 한 게�
 |---|---|---|
 | 데모 영상 (3분 이내, 공개) | ☐ | |
 | 코드 저장소 (공개) | ☐ | |
-| **아키텍처 다이어그램** (이미지, 필수) | ☐ | |
+| **아키텍처 다이어그램** (이미지, 필수) | ☑ | `docs/architecture.svg` (자체 완결 SVG, 폰트 임베드) · `docs/architecture.png` (3200×1800, 2x) |
 | Write-up 5섹션 | ☐ | |
-| 배포 URL (콘솔) | ☐ | |
+| 배포 URL (콘솔) | ☑ | https://backstop-api-5nohynuexa-uc.a.run.app/ |
 | 트랙 선택: Fortified Enterprise Fleet | ☐ | |
 | Built with 태그: ADK / Gemini / Cloud Run / Pub/Sub / Firestore | ☐ | |
 

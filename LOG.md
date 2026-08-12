@@ -78,8 +78,10 @@
 ### T1.2 clock.py — 시간 주입
 - 목표: `datetime.now()` 직접 호출 제거. `Clock` 프로토콜 + `FrozenClock`
 - 완료 조건: 6주 원장을 실시간 대기 없이 생성할 수 있다
-- 예상: 1h
-- [ ]
+- 예상: 1h / 실소요: 0.6h
+- [x] 08-12. `backstop/clock.py` — `Clock` 프로토콜 + `SystemClock` + `FrozenClock`. **완료 조건 확인**: 6주(42일)를 1,008 tick으로 전진, 벽시계 소요 0.4ms.
+- `tests/test_clock.py`가 R3를 저장소 전체에 강제한다. **정규식이 아니라 AST로 검사한다** — 정규식 버전은 `firestore_smoke.py` 독스트링의 "datetime.now()를 부르지 않는다"라는 **설명 문장**을 위반으로 오탐했다. 막으려는 건 텍스트가 아니라 호출이다. 가드 자체를 검사하는 테스트도 붙였다(실제 호출 3종은 잡고, 산문·`clock.now()`는 안 잡는지).
+- `backstop/clock.py`만 벽시계를 읽는 유일한 예외로 허용 목록에 있다.
 
 ### T1.3 ADK 콜백 → 원장
 - 목표: `before_tool_callback`/`after_tool_callback`에서 이벤트 기록

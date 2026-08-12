@@ -17,7 +17,8 @@
 - 목표: 프로젝트 생성, $150 크레딧 폼 제출, Vertex AI / Cloud Run / Pub/Sub / Firestore API 활성화
 - 완료 조건: `gcloud run services list`가 에러 없이 빈 목록을 반환한다
 - 예상: 1h
-- [ ] **차단: 사용자 조작 필요.** gcloud SDK 580.0.0 설치 완료(brew). `gcloud auth login`은 브라우저 대화형이라 에이전트가 대신 못 한다. 이 태스크가 P0 나머지 전부(T0.3 라이브 / T0.4 배포 / T0.5)의 유일한 선행 조건이다.
+- 실소요: 0.4h
+- [x] 08-12. 프로젝트 `backstop-haku-2026`, 결제 연결(018E97-4DB4AA-E37287). API 6종 활성화(run/aiplatform/firestore/pubsub/cloudbuild/artifactregistry). Firestore 네이티브 DB 생성(nam5). **완료 조건 확인: `gcloud run services list` → "Listed 0 items." 종료 코드 0.**
 
 ### T0.2 리포 스캐폴드
 - 목표: uv 프로젝트, `backstop/`·`subject_agent/`·`api/`·`tests/` 디렉터리, Makefile 6개 타깃(빈 껍데기 가능)
@@ -28,8 +29,8 @@
 ### T0.3 ADK 최소 에이전트
 - 목표: ADK로 도구 1개(`erp.create_po` 스텁)를 가진 에이전트. Gemini 3.5 Flash 연결
 - 완료 조건: 로컬에서 에이전트가 도구를 1회 호출하고 결과를 반환한다
-- 예상: 2.5h / 실소요: 0.5h (코드), 라이브 확인 미완
-- [ ] **코드 완료, 자격증명 대기.** `subject_agent/agent.py`(LlmAgent, gemini-3.5-flash, 도구 1개) + `subject_agent/tools/erp.py`(create_po 스텁) 작성. `scripts/smoke_agent.py`가 완료 조건을 검사한다. 현재 `ValueError: No API key was provided`에서 멈춘다 — 코드 경로는 모델 클라이언트까지 도달함이 확인됐고, 남은 건 T0.1의 인증뿐이다.
+- 예상: 2.5h / 실소요: 1.1h
+- [x] 08-12. **완료 조건 확인**: `scripts/smoke_agent.py` → `tool_call: create_po {'vendor_id': 'acme-corp', 'line_item': 'one laptop', 'amount_usd': 4200}` → `PO-8428` 반환. 도구 호출 1건. Gemini 3.5 Flash 라이브.
 - 참고: `create_po`의 PO 번호는 인자 해시에서 파생된다. `vendor_id="acme-corp"` → PO-0382, `"ACME Corp"` → PO-3593. **T3.6 분기 시나리오의 씨앗이 이미 여기 있다.**
 
 ### T0.4 FastAPI 래핑 + Cloud Run 배포
@@ -43,7 +44,8 @@
 - 목표: 도구 호출 결과를 Firestore `events`에 1건 쓴다
 - 완료 조건: 콘솔에서 문서 1건이 눈에 보인다
 - 예상: 1h
-- [ ] **스크립트 준비 완료, 인증 대기.** `scripts/firestore_smoke.py` — `events` 문서 1건을 쓰고 콘솔 링크를 출력한다.
+- 실소요: 0.3h
+- [x] 08-12. **완료 조건 확인**: `events/irPeR3qP0k94DiMPWgiq` 기록됨. `kind=tool_call tool_name=erp.create_po at=2026-08-12 06:37:38+00:00`. 서버 타임스탬프 사용(R3 준수).
 
 ### T0.6 워크숍 시청 (고정 일정)
 - 목표: 08-14 13:00 KST "Build a Long-Running Agent: Persistent Workflows with Google ADK" (멱등성 함정)
@@ -82,6 +84,7 @@
 - 예상: 2.5h
 - [ ]
 - ⚠️ 여기가 프로젝트의 심장이다. 대충 하면 P3에서 게이트가 의미 없어진다
+- 🔴 **P0에서 이미 실물로 관측된 정규화 요구사항 — 숫자 타입.** 라이브 에이전트가 `amount_usd=4200`(int)을 보냈다. 로컬 테스트는 `4200.0`(float)였다. 해시가 갈린다: int → PO-8428, float → PO-9084. LLM은 같은 의미의 인자를 호출마다 다른 JSON 타입으로 보낸다. 정규화 규칙에 **숫자 타입 통일**을 넣지 않으면 관문 ①이 통과시키고 관문 ②가 false positive `DUPLICATE`를 낸다. 인자 순서·공백보다 이게 먼저다.
 
 ### T1.5 IdempotencyGuard (관문 ①)
 - 목표: 같은 키의 부작용이 두 번 나가지 않게 차단. 차단 시 `idempotent_skip` 이벤트 기록
@@ -338,6 +341,9 @@
 | 08-12 | P0 기반 의존성 5종 일괄 설치 (google-adk 2.6.3 / google-cloud-firestore / fastapi+uvicorn / opentelemetry-sdk) | PRD Section 3 스택 그대로. "Phase당 1개" 규칙은 이 기준선 **이후**의 추가에 적용한다 | 없음 |
 | 08-12 | ADK는 2.6.3 (PRD 작성 시 가정은 1.x) | uv가 해석한 최신. 콜백 시그니처를 1.x 기억이 아니라 설치본에서 직접 확인해 쓴다 | 콜백 API가 P1을 막을 때 1.x로 핀 |
 | 08-12 | pytest `pythonpath=["."]` | 리포를 설치형 패키지로 만들지 않고 루트 import 유지. `package=false` | 없음 |
+| 08-12 | **`GOOGLE_CLOUD_LOCATION=global` 고정** | Gemini 3.x는 리전 엔드포인트에 없다. us-central1/us-east5/europe-west4 전부 404 NOT_FOUND. 비리전(global) 엔드포인트에서만 200. 리전엔 2.5 계열만 있다 — **2.5를 쓰면 "Gemini 3.5 이상" 필수 요건 위반이라 실격 사유가 된다** | Google이 3.x를 리전에 배포할 때 |
+| 08-12 | Cloud Run 리전(us-central1)과 모델 위치(global)를 분리 | 같은 변수로 묶으면 배포본이 조용히 404를 낸다. `deploy.sh`에서 `GENAI_LOCATION`을 별도 변수로 뺐다 | 없음 |
+| 08-12 | 모델은 `gemini-3.5-flash` 유지 (3.6-flash도 접근 가능) | 3.6-flash가 출력 토큰이 더 싸지만($7.5 vs $9/1M) PRD·SUBMISSION 전반이 3.5로 서술돼 있고 Narrator 호출 상한이 5회라 비용차가 무의미하다 | Narrator 품질 미달 시 |
 
 ---
 

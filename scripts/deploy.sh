@@ -7,6 +7,9 @@ set -euo pipefail
 PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null)}"
 REGION="${REGION:-us-central1}"
 SERVICE="${SERVICE:-backstop-api}"
+# Cloud Run 리전과 모델 엔드포인트 위치는 별개다. Gemini 3.x는 리전 엔드포인트에
+# 존재하지 않는다 — us-central1로 부르면 404가 난다. 반드시 global.
+GENAI_LOCATION="${GENAI_LOCATION:-global}"
 
 if [[ -z "${PROJECT_ID}" || "${PROJECT_ID}" == "(unset)" ]]; then
   echo "PROJECT_ID가 없다. gcloud config set project <id> 또는 PROJECT_ID=<id> 를 지정한다." >&2
@@ -24,7 +27,7 @@ gcloud run deploy "${SERVICE}" \
   --min-instances=0 \
   --max-instances=3 \
   --memory=1Gi \
-  --set-env-vars="GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${REGION}"
+  --set-env-vars="GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${GENAI_LOCATION}"
 
 URL="$(gcloud run services describe "${SERVICE}" \
   --project "${PROJECT_ID}" --region "${REGION}" --format='value(status.url)')"

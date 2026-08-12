@@ -12,6 +12,10 @@ from subject_agent.tools.erp import create_po
 
 MODEL = os.environ.get("BACKSTOP_MODEL", "gemini-3.5-flash")
 
+# Gemini 3.x는 리전 엔드포인트에 없다. us-central1로 부르면 404 NOT_FOUND가 난다.
+# 비리전(global) 엔드포인트에서만 서빙된다 — Cloud Run 리전과는 무관한 별개의 값이다.
+os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "global")
+
 INSTRUCTION = """You run a vendor onboarding workflow.
 When the user asks for a purchase order, call create_po with the vendor id,
 the amount in US dollars, and the line item. Report the returned po_id."""

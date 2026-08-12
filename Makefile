@@ -1,5 +1,7 @@
 .PHONY: setup test replay gate bench deploy demo
 
+export PYTHONPATH := .
+
 setup:
 	uv sync
 

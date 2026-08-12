@@ -28,8 +28,9 @@
 ### T0.3 ADK 최소 에이전트
 - 목표: ADK로 도구 1개(`erp.create_po` 스텁)를 가진 에이전트. Gemini 3.5 Flash 연결
 - 완료 조건: 로컬에서 에이전트가 도구를 1회 호출하고 결과를 반환한다
-- 예상: 2.5h
-- [ ]
+- 예상: 2.5h / 실소요: 0.5h (코드), 라이브 확인 미완
+- [ ] **코드 완료, 자격증명 대기.** `subject_agent/agent.py`(LlmAgent, gemini-3.5-flash, 도구 1개) + `subject_agent/tools/erp.py`(create_po 스텁) 작성. `scripts/smoke_agent.py`가 완료 조건을 검사한다. 현재 `ValueError: No API key was provided`에서 멈춘다 — 코드 경로는 모델 클라이언트까지 도달함이 확인됐고, 남은 건 T0.1의 인증뿐이다.
+- 참고: `create_po`의 PO 번호는 인자 해시에서 파생된다. `vendor_id="acme-corp"` → PO-0382, `"ACME Corp"` → PO-3593. **T3.6 분기 시나리오의 씨앗이 이미 여기 있다.**
 
 ### T0.4 FastAPI 래핑 + Cloud Run 배포
 - 목표: `api/main.py`에 `/health`, `/run` 두 엔드포인트. Cloud Run 배포(min-instances=0)

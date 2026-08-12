@@ -1,0 +1,25 @@
+[project]
+name = "backstop"
+version = "0.1.0"
+description = "Replay your agent's last six weeks before you ship the next one."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "google-adk>=1.0.0",
+    "google-cloud-firestore>=2.19.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "opentelemetry-sdk>=1.29.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+pythonpath = ["."]
+
+[tool.uv]
+package = false

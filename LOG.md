@@ -5,8 +5,9 @@
 **실제 마감**: 2026-09-01 09:00 KST (Aug 31 17:00 PDT)
 **가용 시간 가정**: 하루 4~6시간 / 총 80~110시간
 
-**현재 Phase**: P0
-**현재 잔여 크레딧**: $150 (미사용)
+**현재 Phase**: P1 (P0 게이트 08-12 통과, 계획 대비 2일 선행)
+**배포 URL**: https://backstop-api-911984605187.us-central1.run.app
+**현재 잔여 크레딧**: 미확인 — 08-12 Cloud Build 1회 + Cloud Run + Vertex 호출 3회로 실사용은 $1 미만 추정. **콘솔에서 눈으로 확인 필요**(CLAUDE.md §10)
 
 ---
 
@@ -36,8 +37,12 @@
 ### T0.4 FastAPI 래핑 + Cloud Run 배포
 - 목표: `api/main.py`에 `/health`, `/run` 두 엔드포인트. Cloud Run 배포(min-instances=0)
 - 완료 조건: **공개 URL이 `/health`에 200을 반환한다**
-- 예상: 2.5h / 실소요: 0.6h (코드), 배포 미완
-- [ ] **코드 완료, 인증 대기.** `api/main.py`(/health, /run) + `Dockerfile` + `scripts/deploy.sh`(min-instances=0). 로컬에서 컨테이너와 동일한 진입점(`uvicorn api.main:app`)이 `/health` 200 확인됨. `tests/test_health.py`가 회귀를 막는다. 남은 건 `gcloud auth login` 뿐이다.
+- 예상: 2.5h / 실소요: 1.0h
+- [x] 08-12. **완료 조건 확인: 공개 URL `/health` → HTTP 200.**
+  - URL: https://backstop-api-911984605187.us-central1.run.app
+  - `{"status":"ok","service":"backstop-api","model":"gemini-3.5-flash"}`
+  - `/run`도 배포본에서 종단 확인: 도구 호출 1건 → PO-8428. Cloud Run 런타임 SA가 Vertex(global)에 도달한다.
+  - min-instances=0, max-instances=3, allow-unauthenticated(로그인 없이 심사 가능)
 - ⚠️ 이 태스크가 08-14까지 안 끝나면 전체 계획을 재검토한다
 
 ### T0.5 Firestore 쓰기 1건
@@ -54,6 +59,9 @@
 - [ ]
 
 **P0 검증 게이트**: 공개 URL 200 + Firestore 문서 1건. 통과 시 `git tag p0-gate-passed`.
+
+✅ **08-12 통과.** 공개 URL 200 + `events/irPeR3qP0k94DiMPWgiq`. 태그 `p0-gate-passed`.
+계획(08-14) 대비 2일 빠르다. T0.6 워크숍은 08-14 고정 일정이라 미완으로 남는다 — 게이트 조건이 아니므로 P1을 막지 않는다.
 
 ---
 
@@ -353,6 +361,7 @@
 |---|---|---|
 | 08-12 | P0 | LOG.md 초안 작성. 스프린트 시작 |
 | 08-12 | P0 | Hour 0. T0.2 완료. T0.3/T0.4/T0.5는 코드·스크립트 완료 후 인증 대기. gcloud SDK 설치. 커밋 3건 |
+| 08-12 | P0 | **P0 게이트 통과.** T0.1/T0.3/T0.4/T0.5 완료. Cloud Run 공개 URL 200. Gemini 3.x 리전 미서빙 발견 → global 엔드포인트로 고정. 현재 Phase를 P1로 갱신 |
 
 ---
 

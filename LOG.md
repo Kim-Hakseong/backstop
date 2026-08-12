@@ -142,20 +142,30 @@
 ### T2.1 Pub/Sub 토픽 + push 구독
 - 목표: `agent.tick` 토픽 → Cloud Run push 엔드포인트
 - 완료 조건: 메시지 발행 시 에이전트가 한 스텝 전진한다
-- 예상: 3h
-- [ ]
+- 예상: 3h / 실소요: 1.2h
+- [x] 08-12. 토픽 `agent.tick` + push 구독 `agent-tick-push`(ack deadline 30s) → Cloud Run `/tick`.
+- **완료 조건 확인**: `gcloud pubsub topics publish agent.tick --message '{"run_id":"p2-pubsub-01"}'` → `/runs/p2-pubsub-01`이 `cursor=0→1`, `events=2`, `effects=1`.
+- Pub/Sub push 봉투는 base64다. 해석이 틀리면 엔드포인트가 200을 주면서 아무 일도 안 한다 — 조용히 실패하는 종류라 `tests/test_tick_endpoint.py`로 고정했다(attributes 우선, JSON payload, 평문, 직접 호출).
+- 🔴 **함정 5 — `default_ledger()`가 요청마다 새 인메모리 원장을 만들었다.** 오프라인 모드에서 tick이 200을 돌려주는데 커서가 계속 1이었다. 프로세스당 캐시로 고쳤다.
 
 ### T2.2 워크플로 상태 영속화
 - 목표: 6주 벤더 온보딩 워크플로를 스텝 단위로 쪼개고 상태를 Firestore `runs`에 저장
 - 완료 조건: 프로세스를 껐다 켜도 다음 tick에서 이어서 진행된다
-- 예상: 3.5h
-- [ ]
+- 예상: 3.5h / 실소요: 1.0h
+- [x] 08-12. `subject_agent/workflow.py` — 6주 12스텝 벤더 온보딩(주당 2스텝, 4주차에 `erp.create_po`, 5주차에 `payment.schedule_payment`). 커서는 `runs/{run_id}.cursor`.
+- **완료 조건 확인**: `test_state_survives_a_new_runner_instance` — 새 `WorkflowRunner` 인스턴스(=새 프로세스)가 커서 2에서 이어받아 3으로 간다. 배포본에서도 tick 3회 → `cursor=3, events=6, effects=3`.
+- **커서는 부작용 뒤에 전진한다.** 반대로 하면 크래시가 스텝을 건너뛴다.
+- 스텝은 결정론적으로 실행되고 ADK와 **같은 `LedgerCallbacks`**를 통과한다. 스텝마다 LLM을 부르면 원장 1,000건에 비용·시간이 폭발한다(CLAUDE.md §10). 관문 ①과 원장 기록은 LLM 경로와 동일하다.
+- 도구 3종(`erp.create_po`/`mail.send`/`payment.schedule_payment`). 5개 상한 안이다.
 
 ### T2.3 크래시 주입 경로
 - 목표: `POST /admin/kill` — 실행 중간에 프로세스를 자살시킨다
 - 완료 조건: 부작용 실행 직전에 죽일 수 있다 (가장 위험한 지점)
-- 예상: 1.5h
-- [ ]
+- 예상: 1.5h / 실소요: 0.5h
+- [x] 08-12. `POST /admin/kill {"when":"before_effect"|"now"}`. 무장 시 다음 tick이 **관문 ①을 통과한 뒤, 도구 실행 직전에** `os._exit(137)`.
+- `sys.exit`이 아니라 `os._exit`다. 예외를 던지면 FastAPI가 잡아 500을 돌려주고, 그러면 Pub/Sub이 **응답을 받아버린다**. 응답 없이 사라져야 재전달이 일어난다.
+- 무장은 1회용이다. 안 그러면 재개 tick도 계속 죽어서 재개가 증명되지 않는다.
+- 공개 URL에 자살 버튼을 두는 것이므로 `BACKSTOP_KILL_TOKEN` 헤더를 건다. 인증 시스템이 아니라 자물쇠 하나다(§4의 "인증 만들지 않는다"와 충돌하지 않는 최소 조치).
 
 ### T2.4 재개 검증
 - 목표: 크래시 → Pub/Sub 재전달 → 재개 시 중복 부작용 0건

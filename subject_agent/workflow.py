@@ -15,7 +15,15 @@ from dataclasses import dataclass, replace
 from typing import Any, Callable
 
 from backstop.clock import Clock, SystemClock
-from backstop.ledger import DONE, RESUMED, RUNNING, Ledger, Run
+from backstop.ledger import (
+    COMMITTED,
+    DONE,
+    RESUMED,
+    RUNNING,
+    Ledger,
+    Run,
+    effect_key,
+)
 from subject_agent.callbacks import LedgerCallbacks
 from subject_agent.tools import erp, mail, payment
 
@@ -158,7 +166,21 @@ class WorkflowRunner:
             tool=tool, args=args, tool_context=ctx, tool_response=response
         )
 
-        # 커서는 부작용 **뒤에** 전진한다. 반대로 하면 크래시 시 스텝을 건너뛴다.
+        # 이 스텝의 부작용이 **확정**됐을 때만 커서를 전진시킨다.
+        #
+        # 차단에는 두 종류가 있고 의미가 다르다:
+        #   - committed 를 만나 차단됨 → 이미 끝난 일이다. 전진해야 한다.
+        #   - lease 안의 pending 을 만나 차단됨 → 다른 워커가 실행 중이거나, 방금
+        #     죽은 워커의 흔적이다. 아직 안 끝났다. **전진하면 스텝이 통째로 사라진다.**
+        #
+        # 실제로 그렇게 사라졌다: 크래시 후 재전달이 lease(25s) 안에 도착하자
+        # 재시도가 중복으로 오인돼 건너뛰어졌고, 커서만 올라가 워크플로가
+        # "완료"됐다. 부작용 12건 중 11건만 나간 채로.
+        key = effect_key(step.tool, args, self._run_id)
+        settled = self._ledger.find_effect(self._run_id, key)
+        if settled is None or settled.status != COMMITTED:
+            return run  # 커서 유지 → 다음 tick 이 같은 스텝을 다시 시도한다
+
         advanced = replace(
             run,
             cursor=run.cursor + 1,

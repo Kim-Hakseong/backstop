@@ -140,6 +140,72 @@ def test_retry_after_crash_completes_the_step():
     assert len(ledger.effects("run-1")) == 1
 
 
+def test_blocked_by_pending_does_not_advance_the_cursor():
+    """리스 안의 pending 에 막히면 스텝은 아직 안 끝난 것이다. 커서가 올라가면 안 된다.
+
+    실제로 올라갔다: 크래시 재전달이 리스 안에 도착하자 재시도가 중복으로 오인됐고,
+    커서만 전진해 워크플로가 부작용 1건을 빠뜨린 채 "완료"됐다.
+    """
+
+    class Boom(Exception):
+        pass
+
+    ledger, wf, clock = make()
+    wf.start()
+    with pytest.raises(Boom):
+        wf.tick(before_effect=lambda step: (_ for _ in ()).throw(Boom()))
+
+    clock.advance(seconds=1)  # 리스 안에서 재시도
+    run = wf.tick()
+
+    assert run.cursor == 0, "미완료 스텝을 건너뛰면 안 된다"
+    assert len(ledger.effects("run-1")) == 0
+
+    # 리스가 만료되면 같은 스텝이 정상적으로 끝난다
+    clock.advance(seconds=PENDING_LEASE_SECONDS + 5)
+    run = wf.tick()
+    assert run.cursor == 1
+    assert len(ledger.effects("run-1")) == 1
+
+
+def test_committed_block_still_advances_the_cursor():
+    """이미 확정된 부작용을 만난 차단은 '끝난 일'이므로 전진해야 한다."""
+    ledger, wf, clock = make()
+    wf.start()
+    wf.tick()  # 스텝 0 완료
+
+    # 커서를 되돌려 같은 스텝을 다시 시도하게 만든다 (재전달 흉내)
+    from dataclasses import replace
+
+    ledger.save_run(replace(ledger.get_run("run-1"), cursor=0))
+    run = wf.tick()
+
+    assert run.cursor == 1
+    assert len(ledger.effects("run-1")) == 1  # 두 번 나가지 않았다
+
+
+def test_workflow_completes_with_one_effect_per_step_after_a_crash():
+    """크래시가 끼어도 최종 부작용 수는 스텝 수와 같아야 한다. 빠지지도 겹치지도 않는다."""
+
+    class Boom(Exception):
+        pass
+
+    ledger, wf, clock = make()
+    wf.start()
+    wf.tick()
+    with pytest.raises(Boom):
+        wf.tick(before_effect=lambda step: (_ for _ in ()).throw(Boom()))
+
+    for _ in range(40):
+        clock.advance(seconds=PENDING_LEASE_SECONDS + 1)
+        run = wf.tick()
+        if run.status == DONE:
+            break
+
+    assert run.cursor == len(STEPS)
+    assert len(ledger.effects("run-1")) == len(STEPS)
+
+
 def test_retry_within_the_lease_is_blocked():
     """리스 안의 재시도는 '다른 워커가 실행 중'이라는 뜻이므로 막아야 한다.
 

@@ -53,7 +53,7 @@
 - [x] 08-12. **완료 조건 확인**: `events/irPeR3qP0k94DiMPWgiq` 기록됨. `kind=tool_call tool_name=erp.create_po at=2026-08-12 06:37:38+00:00`. 서버 타임스탬프 사용(R3 준수).
 
 ### T0.6 워크숍 시청 (고정 일정)
-- 목표: 08-14 13:00 KST "Build a Long-Running Agent: Persistent Workflows with Google ADK" (멱등성 함정)
+- 목표: **08-13 (PT) 09:00 PM PT = 08-14 13:00 KST** "Build a Long-Running Agent: Persistent Workflows with Google ADK" (멱등성 함정). 같은 내용의 오전 회차는 09:00 AM PT = 08-14 01:00 KST — 저녁 회차로 간다
 - 완료 조건: P1 설계에 반영할 항목을 Decision Log에 3줄 이상 적는다
 - 예상: 1.5h
 - [ ]
@@ -61,7 +61,7 @@
 **P0 검증 게이트**: 공개 URL 200 + Firestore 문서 1건. 통과 시 `git tag p0-gate-passed`.
 
 ✅ **08-12 통과.** 공개 URL 200 + `events/irPeR3qP0k94DiMPWgiq`. 태그 `p0-gate-passed`.
-계획(08-14) 대비 2일 빠르다. T0.6 워크숍은 08-14 고정 일정이라 미완으로 남는다 — 게이트 조건이 아니므로 P1을 막지 않는다.
+계획(08-14) 대비 2일 빠르다. T0.6 워크숍은 08-13(PT) / 08-14 13:00 KST 고정 일정이라 미완으로 남는다 — 게이트 조건이 아니므로 P1을 막지 않는다.
 
 ---
 

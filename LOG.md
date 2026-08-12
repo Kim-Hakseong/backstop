@@ -272,6 +272,7 @@
 - 예상: 4h (재촬영 포함)
 - [ ]
 - ⚠️ **08-12 Overview 재확인 결과 원문은 "approximately 4-minute demo video proving backend runs on Google Cloud"다.** PRD·SUBMISSION은 3분으로 잡혀 있다. 3분은 4분 이하라 위반은 아니지만, 원문이 **"백엔드가 Google Cloud에서 돈다는 증명"**을 명시적으로 요구한다 — 현재 큐시트에는 배포 URL이 마지막 정지 화면에만 나온다. 라이브 Cloud Run 응답을 화면에 넣는 컷이 필요하다. T5.5에서 Rules 전문으로 최종 확인한다.
+- ✅ **08-12 해소.** 3분 구조 유지. @SUBMISSION.md 큐시트에 `1:50–1:55` Cloud Run 콘솔 + 라이브 `.run.app` 호출 5초 컷 삽입(아키텍처 구간 25→20초에서 차용). 2:30–3:00 클라이맥스 불변. 촬영 실패 시 콘솔 요청 로그 화면으로 대체.
 
 ### T5.5 Rules 탭 재확인
 - 목표: 상금 구조 / 심사 배점 / IP·오픈소스 조항을 직접 읽는다

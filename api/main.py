@@ -7,7 +7,7 @@ import base64
 import json
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 from pydantic import BaseModel
@@ -67,6 +67,45 @@ def health() -> dict:
     }
 
 
+class KillRequest(BaseModel):
+    # "before_effect" = 다음 tick 의 부작용 직전에 죽는다 (가장 위험한 지점)
+    # "now"           = 즉시 죽는다
+    when: str = "before_effect"
+
+
+# 다음 tick 에서 자살할지 여부. 프로세스가 죽으면 같이 사라진다 — 그게 정상이다.
+_ARMED_CRASH = {"value": False}
+
+
+def _suicide(reason: str) -> None:
+    """프로세스를 즉시 죽인다.
+
+    `sys.exit` 이 아니라 `os._exit` 다. 예외는 FastAPI 가 잡아 500 을 돌려주고,
+    그러면 Pub/Sub 은 ack 을 받지 못한 게 아니라 **응답을 받아버린다**.
+    부작용 직전의 진짜 크래시를 재현하려면 응답 없이 사라져야 한다.
+    """
+    print(f"[backstop] simulated crash: {reason}", flush=True)
+    os._exit(137)
+
+
+@app.post("/admin/kill")
+def admin_kill(req: KillRequest, x_backstop_kill: str | None = Header(default=None)):
+    """크래시 주입 (T2.3). 데모 2:30 장면의 트리거.
+
+    BACKSTOP_KILL_TOKEN 이 설정돼 있으면 헤더로 같은 값을 줘야 한다. 인증 시스템이
+    아니라, 공개 URL 에 놓인 자살 버튼을 지나가는 사람이 누르지 못하게 하는 자물쇠다.
+    """
+    expected = os.environ.get("BACKSTOP_KILL_TOKEN")
+    if expected and x_backstop_kill != expected:
+        raise HTTPException(status_code=403, detail="bad kill token")
+
+    if req.when == "now":
+        _suicide("immediate")
+
+    _ARMED_CRASH["value"] = True
+    return {"armed": True, "when": "before_effect"}
+
+
 @app.post("/tick")
 def tick(req: TickRequest) -> dict:
     """Pub/Sub `agent.tick` push 대상. 메시지 1건 = 워크플로 1스텝.
@@ -76,7 +115,13 @@ def tick(req: TickRequest) -> dict:
     """
     run_id = req.resolve_run_id()
     wf = WorkflowRunner(default_ledger(), run_id)
-    run = wf.tick()
+
+    def crash_if_armed(step) -> None:
+        if _ARMED_CRASH["value"]:
+            _ARMED_CRASH["value"] = False
+            _suicide(f"before effect of step '{step.name}' (run {run_id})")
+
+    run = wf.tick(before_effect=crash_if_armed)
     return {
         "run_id": run_id,
         "cursor": run.cursor,

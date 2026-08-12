@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime
 from typing import Any, Protocol
 
@@ -48,6 +48,23 @@ class Event:
         return doc
 
 
+# effects.status — 관문 ①은 두 단계다: 실행 전에 키를 선점(pending)하고,
+# 실행이 끝나면 확정(committed)한다. 선점이 원자적이어야 동시 실행에서 중복이 안 나간다.
+PENDING = "pending"
+COMMITTED = "committed"
+
+# 선점(pending) 상태의 유효 기간. 이 안에 있는 pending 은 "다른 워커가 지금 실행 중"
+# 이라는 뜻이므로 차단한다. 넘어가면 "그 워커가 죽었다"로 보고 재선점을 허용한다.
+#
+# Pub/Sub ack deadline(30s)보다 짧아야 크래시 후 재전달이 스텝을 이어받을 수 있다.
+# 동시 전달은 1초 안에 겹치므로 이 값이면 확실히 차단된다.
+#
+# ⚠️ 한계: "부작용 직전에 죽었다"와 "부작용 직후·확정 직전에 죽었다"를 구분하지
+# 못한다. 후자에서 재선점하면 부작용이 두 번 나간다. 이 창(window)은 도구 실행과
+# commit 사이의 수 밀리초다. write-up 에 약점으로 명시한다.
+PENDING_LEASE_SECONDS = 25
+
+
 @dataclass(frozen=True)
 class Effect:
     run_id: str
@@ -55,6 +72,7 @@ class Effect:
     event_id: str
     target: str
     at: datetime
+    status: str = COMMITTED
     # 차단된 재시도에 돌려줄 원래 결과. 관문 ①은 예외를 던지지 않고 이걸 반환한다 —
     # 에이전트는 중단되지 않고 계속 진행해야 한다.
     result: dict[str, Any] = field(default_factory=dict)
@@ -87,6 +105,17 @@ class Ledger(Protocol):
     def events(self, run_id: str) -> list[Event]: ...
     def effects(self, run_id: str) -> list[Effect]: ...
     def find_effect(self, run_id: str, key: str) -> Effect | None: ...
+    def claim_effect(
+        self, run_id: str, idem_key: str, event_id: str
+    ) -> tuple[Effect, bool]: ...
+    def commit_effect(
+        self,
+        run_id: str,
+        idem_key: str,
+        target: str,
+        result: dict[str, Any],
+        event_id: str = "",
+    ) -> Effect: ...
     def start_run(self, run_id: str, agent_version: str) -> Run: ...
     def get_run(self, run_id: str) -> Run | None: ...
     def save_run(self, run: Run) -> Run: ...
@@ -156,6 +185,17 @@ class InMemoryLedger:
         )
 
     def effects(self, run_id: str) -> list[Effect]:
+        """**확정된** 부작용만. 실제로 외부로 나간 것이 이것뿐이기 때문이다.
+
+        관문 ②의 비교 대상도 이 집합이다. 선점만 하고 죽은 pending 을 여기 섞으면
+        "나가지도 않은 부작용"을 과거 사실로 취급하게 된다.
+        """
+        return [
+            e for e in self._effects if e.run_id == run_id and e.status == COMMITTED
+        ]
+
+    def all_effects(self, run_id: str) -> list[Effect]:
+        """pending 포함. 진단용."""
         return [e for e in self._effects if e.run_id == run_id]
 
     def find_effect(self, run_id: str, key: str) -> Effect | None:
@@ -163,6 +203,60 @@ class InMemoryLedger:
             if e.run_id == run_id and e.idem_key == key:
                 return e
         return None
+
+    def claim_effect(
+        self, run_id: str, idem_key: str, event_id: str
+    ) -> tuple[Effect, bool]:
+        """키를 선점한다. `(effect, 내가_선점했는가)`.
+
+        이미 있으면 기존 것을 돌려주고 False. 이 연산이 원자적이어야 한다 —
+        "조회 후 기록"으로 나누면 동시 실행에서 둘 다 통과한다.
+        """
+        for i, e in enumerate(self._effects):
+            if e.run_id != run_id or e.idem_key != idem_key:
+                continue
+            if e.status == COMMITTED:
+                return e, False
+            age = (self._clock.now() - e.at).total_seconds()
+            if age < PENDING_LEASE_SECONDS:
+                return e, False  # 다른 워커가 실행 중이다
+            # 리스 만료 = 선점자가 죽었다. 재선점한다.
+            reclaimed = replace(e, at=self._clock.now(), event_id=event_id)
+            self._effects[i] = reclaimed
+            return reclaimed, True
+
+        effect = Effect(
+            run_id=run_id,
+            idem_key=idem_key,
+            event_id=event_id,
+            target="",
+            at=self._clock.now(),
+            status=PENDING,
+            effect_id=f"eff-{len(self._effects)}",
+        )
+        self._effects.append(effect)
+        return effect, True
+
+    def commit_effect(
+        self,
+        run_id: str,
+        idem_key: str,
+        target: str,
+        result: dict[str, Any],
+        event_id: str = "",
+    ) -> Effect:
+        for i, e in enumerate(self._effects):
+            if e.run_id == run_id and e.idem_key == idem_key:
+                committed = replace(
+                    e,
+                    target=target,
+                    result=result,
+                    status=COMMITTED,
+                    event_id=event_id or e.event_id,
+                )
+                self._effects[i] = committed
+                return committed
+        raise KeyError(f"no claim for {idem_key}")
 
     def start_run(self, run_id: str, agent_version: str) -> Run:
         """이미 있으면 그대로 돌려준다 — 재개는 새 run 을 만들지 않는다."""
@@ -265,9 +359,11 @@ class FirestoreLedger:
         return [Event(**d.to_dict(), event_id=d.id) for d in docs]
 
     def effects(self, run_id: str) -> list[Effect]:
-        docs = (
-            self._db.collection("effects").where("run_id", "==", run_id).stream()
-        )
+        """확정된 부작용만. InMemoryLedger.effects 와 같은 의미여야 한다."""
+        return [e for e in self.all_effects(run_id) if e.status == COMMITTED]
+
+    def all_effects(self, run_id: str) -> list[Effect]:
+        docs = self._db.collection("effects").where("run_id", "==", run_id).stream()
         return [Effect(**d.to_dict(), effect_id=d.id) for d in docs]
 
     def find_effect(self, run_id: str, key: str) -> Effect | None:
@@ -279,6 +375,65 @@ class FirestoreLedger:
             .stream()
         )
         return Effect(**docs[0].to_dict(), effect_id=docs[0].id) if docs else None
+
+    def _effect_ref(self, run_id: str, idem_key: str):
+        # 문서 ID 가 곧 멱등성 키다. 유일성이 애플리케이션 로직이 아니라 **저장소
+        # 제약**으로 강제된다 — 이게 동시 실행에서 중복을 막는 유일한 방법이다.
+        return self._db.collection("effects").document(f"{run_id}__{idem_key}")
+
+    def claim_effect(
+        self, run_id: str, idem_key: str, event_id: str
+    ) -> tuple[Effect, bool]:
+        from google.cloud import firestore
+
+        ref = self._effect_ref(run_id, idem_key)
+        now = self._clock.now()
+        transaction = self._db.transaction()
+
+        @firestore.transactional
+        def _claim(tx) -> tuple[dict, bool]:
+            snap = ref.get(transaction=tx)
+            if snap.exists:
+                current = snap.to_dict()
+                if current.get("status") == COMMITTED:
+                    return current, False
+                age = (now - current["at"]).total_seconds()
+                if age < PENDING_LEASE_SECONDS:
+                    return current, False  # 다른 워커가 실행 중이다
+                reclaimed = {**current, "at": now, "event_id": event_id}
+                tx.set(ref, reclaimed)
+                return reclaimed, True
+
+            fresh = Effect(
+                run_id=run_id,
+                idem_key=idem_key,
+                event_id=event_id,
+                target="",
+                at=now,
+                status=PENDING,
+            ).to_doc()
+            # 트랜잭션 안의 create 라 동시 실행에서 한쪽만 성공한다.
+            tx.create(ref, fresh)
+            return fresh, True
+
+        doc, claimed = _claim(transaction)
+        return Effect(**doc, effect_id=ref.id), claimed
+
+    def commit_effect(
+        self,
+        run_id: str,
+        idem_key: str,
+        target: str,
+        result: dict[str, Any],
+        event_id: str = "",
+    ) -> Effect:
+        ref = self._effect_ref(run_id, idem_key)
+        patch = {"target": target, "result": result, "status": COMMITTED}
+        if event_id:
+            patch["event_id"] = event_id
+        ref.update(patch)
+        snap = ref.get()
+        return Effect(**snap.to_dict(), effect_id=ref.id)
 
     def start_run(self, run_id: str, agent_version: str) -> Run:
         ref = self._db.collection("runs").document(run_id)

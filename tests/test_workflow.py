@@ -5,7 +5,13 @@ from datetime import datetime, timezone
 import pytest
 
 from backstop.clock import FrozenClock
-from backstop.ledger import DONE, RUNNING, InMemoryLedger
+from backstop.ledger import (
+    DONE,
+    IDEMPOTENT_SKIP,
+    PENDING_LEASE_SECONDS,
+    RUNNING,
+    InMemoryLedger,
+)
 from subject_agent.workflow import STEPS, WorkflowRunner
 
 
@@ -114,14 +120,43 @@ def test_crash_before_effect_leaves_no_effect():
 
 
 def test_retry_after_crash_completes_the_step():
+    """크래시로 남은 선점(pending)은 리스가 만료되면 재선점된다.
+
+    Pub/Sub 재전달은 ack deadline(30s) 뒤에 오므로 실제로 리스보다 늦다.
+    """
+
     class Boom(Exception):
         pass
 
-    ledger, wf, _ = make()
+    ledger, wf, clock = make()
     wf.start()
     with pytest.raises(Boom):
         wf.tick(before_effect=lambda step: (_ for _ in ()).throw(Boom()))
 
+    clock.advance(seconds=PENDING_LEASE_SECONDS + 5)  # 재전달까지 걸린 시간
     run = wf.tick()
+
     assert run.cursor == 1
     assert len(ledger.effects("run-1")) == 1
+
+
+def test_retry_within_the_lease_is_blocked():
+    """리스 안의 재시도는 '다른 워커가 실행 중'이라는 뜻이므로 막아야 한다.
+
+    이걸 허용하면 Pub/Sub 동시 전달에서 부작용이 두 번 나간다 — 실제로 그렇게 샜다.
+    """
+
+    class Boom(Exception):
+        pass
+
+    ledger, wf, clock = make()
+    wf.start()
+    with pytest.raises(Boom):
+        wf.tick(before_effect=lambda step: (_ for _ in ()).throw(Boom()))
+
+    clock.advance(seconds=1)
+    wf.tick()
+
+    # 부작용은 나가지 않았고, 원장에는 차단 흔적이 남는다
+    assert len(ledger.effects("run-1")) == 0
+    assert any(e.kind == IDEMPOTENT_SKIP for e in ledger.events("run-1"))

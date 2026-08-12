@@ -50,6 +50,8 @@ class LedgerCallbacks:
         self._pending: dict[str, str] = {}
         # 관문 ①이 건너뛰게 만든 호출. after_tool 이 부작용을 기록하지 않게 표시한다.
         self._skipped: set[str] = set()
+        # before 에서 선점한 키. after 에서 확정할 때 쓴다.
+        self._claims: dict[str, str] = {}
 
     def _slot(self, tool_name: str, context: Any) -> str:
         return f"{getattr(context, 'function_call_id', None) or ''}:{tool_name}"
@@ -69,8 +71,12 @@ class LedgerCallbacks:
         # 스팬은 차단 여부와 무관하게 연다. 막힌 호출도 감사 대상이다(R4).
         trace_id, span_id = self._spans.start(slot, tool.name)
 
-        prior = self._ledger.find_effect(self._run_id, key)
-        if prior is not None:
+        # 도구를 실행하기 **전에** 키를 선점한다. "조회 후 실행 후 기록" 순서로 하면
+        # 동시에 들어온 두 호출이 둘 다 "기록 없음"을 보고 둘 다 실행한다.
+        # 실제로 그렇게 새어나갔다 — Pub/Sub 동시 전달에서 같은 부작용이 2건 나갔다.
+        prior, claimed = self._ledger.claim_effect(self._run_id, key, "")
+
+        if not claimed:
             self._ledger.append_event(
                 run_id=self._run_id,
                 kind=IDEMPOTENT_SKIP,
@@ -85,8 +91,10 @@ class LedgerCallbacks:
             return dict(prior.result) or {
                 "idempotent_skip": True,
                 "target": prior.target,
+                "status": prior.status,
             }
 
+        # 선점에 성공한 호출만 tool_call 로 남는다. 차단된 호출은 idempotent_skip 이다.
         event = self._ledger.append_event(
             run_id=self._run_id,
             kind=TOOL_CALL,
@@ -96,6 +104,7 @@ class LedgerCallbacks:
             span_id=span_id,
         )
         self._pending[slot] = event.event_id or ""
+        self._claims[slot] = key
         return None  # None = 도구를 정상 실행한다
 
     def after_tool(
@@ -116,7 +125,7 @@ class LedgerCallbacks:
             return None
 
         trace_id, span_id = self._spans.end(slot)
-        event = self._ledger.append_event(
+        self._ledger.append_event(
             run_id=self._run_id,
             kind=TOOL_RESULT,
             tool_name=tool.name,
@@ -124,14 +133,15 @@ class LedgerCallbacks:
             trace_id=trace_id,
             span_id=span_id,
         )
-        call_event_id = self._pending.pop(slot, event.event_id)
+        call_event_id = self._pending.pop(slot, "")
 
-        # 여기까지 왔다는 건 도구가 실제로 실행됐다는 뜻이다 → 부작용을 기록한다.
-        self._ledger.append_effect(
+        # 도구가 실제로 실행됐다 → 선점해 둔 키를 확정한다.
+        key = self._claims.pop(slot, None) or effect_key(tool.name, args, self._run_id)
+        self._ledger.commit_effect(
             run_id=self._run_id,
-            idem_key=effect_key(tool.name, args, self._run_id),
-            event_id=call_event_id or "",
+            idem_key=key,
             target=target_of(tool.name, tool_response),
             result=tool_response if isinstance(tool_response, dict) else {},
+            event_id=call_event_id or "",
         )
         return None  # None = 도구 결과를 그대로 쓴다

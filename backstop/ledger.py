@@ -16,6 +16,12 @@ from typing import Any, Protocol
 from backstop.clock import Clock, SystemClock
 from backstop.idempotency import canonicalize_args, idem_key
 
+# runs.status
+RUNNING = "running"
+CRASHED = "crashed"
+RESUMED = "resumed"
+DONE = "done"
+
 # events.kind
 TOOL_CALL = "tool_call"
 TOOL_RESULT = "tool_result"
@@ -60,12 +66,30 @@ class Effect:
         return doc
 
 
+@dataclass(frozen=True)
+class Run:
+    run_id: str
+    agent_version: str
+    started_at: datetime
+    last_tick_at: datetime
+    status: str
+    # 워크플로 스텝 위치. 재개는 여기서 이어간다. 이게 없으면 크래시 후 처음부터
+    # 다시 돌아 중복이 대량 발생한다.
+    cursor: int = 0
+
+    def to_doc(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 class Ledger(Protocol):
     def append_event(self, **kwargs) -> Event: ...
     def append_effect(self, **kwargs) -> Effect: ...
     def events(self, run_id: str) -> list[Event]: ...
     def effects(self, run_id: str) -> list[Effect]: ...
     def find_effect(self, run_id: str, key: str) -> Effect | None: ...
+    def start_run(self, run_id: str, agent_version: str) -> Run: ...
+    def get_run(self, run_id: str) -> Run | None: ...
+    def save_run(self, run: Run) -> Run: ...
 
 
 class InMemoryLedger:
@@ -76,6 +100,7 @@ class InMemoryLedger:
         self._events: list[Event] = []
         self._effects: list[Effect] = []
         self._seq: dict[str, int] = {}
+        self._runs: dict[str, Run] = {}
 
     def _next_seq(self, run_id: str) -> int:
         self._seq[run_id] = self._seq.get(run_id, -1) + 1
@@ -138,6 +163,30 @@ class InMemoryLedger:
             if e.run_id == run_id and e.idem_key == key:
                 return e
         return None
+
+    def start_run(self, run_id: str, agent_version: str) -> Run:
+        """이미 있으면 그대로 돌려준다 — 재개는 새 run 을 만들지 않는다."""
+        existing = self._runs.get(run_id)
+        if existing is not None:
+            return existing
+        now = self._clock.now()
+        run = Run(
+            run_id=run_id,
+            agent_version=agent_version,
+            started_at=now,
+            last_tick_at=now,
+            status=RUNNING,
+            cursor=0,
+        )
+        self._runs[run_id] = run
+        return run
+
+    def get_run(self, run_id: str) -> Run | None:
+        return self._runs.get(run_id)
+
+    def save_run(self, run: Run) -> Run:
+        self._runs[run.run_id] = run
+        return run
 
 
 class FirestoreLedger:
@@ -230,6 +279,61 @@ class FirestoreLedger:
             .stream()
         )
         return Effect(**docs[0].to_dict(), effect_id=docs[0].id) if docs else None
+
+    def start_run(self, run_id: str, agent_version: str) -> Run:
+        ref = self._db.collection("runs").document(run_id)
+        snap = ref.get()
+        if snap.exists:
+            return Run(**snap.to_dict())
+        now = self._clock.now()
+        run = Run(
+            run_id=run_id,
+            agent_version=agent_version,
+            started_at=now,
+            last_tick_at=now,
+            status=RUNNING,
+            cursor=0,
+        )
+        ref.set(run.to_doc())
+        return run
+
+    def get_run(self, run_id: str) -> Run | None:
+        snap = self._db.collection("runs").document(run_id).get()
+        return Run(**snap.to_dict()) if snap.exists else None
+
+    def save_run(self, run: Run) -> Run:
+        self._db.collection("runs").document(run.run_id).set(run.to_doc())
+        return run
+
+
+_DEFAULT: Ledger | None = None
+
+
+def default_ledger(clock: Clock | None = None) -> Ledger:
+    """PROJECT_ID 가 있고 오프라인 모드가 아니면 Firestore, 아니면 메모리.
+
+    R2: 환경변수 없이도 동작해야 한다. 기본값이 오프라인이다.
+
+    **프로세스당 하나로 캐시한다.** 요청마다 새로 만들면 인메모리 모드에서 원장이
+    매번 비어 있고, tick 은 200 을 돌려주면서 아무 것도 전진시키지 않는다 —
+    조용히 실패한다. Firestore 모드에서도 클라이언트 재생성을 피한다.
+    """
+    global _DEFAULT
+    import os
+
+    if _DEFAULT is None:
+        project = os.environ.get("PROJECT_ID") or os.environ.get("GOOGLE_CLOUD_PROJECT")
+        if project and not os.environ.get("BACKSTOP_OFFLINE"):
+            _DEFAULT = FirestoreLedger(project=project, clock=clock)
+        else:
+            _DEFAULT = InMemoryLedger(clock=clock)
+    return _DEFAULT
+
+
+def reset_default_ledger() -> None:
+    """테스트 격리용. 프로덕션 경로에서는 부르지 않는다."""
+    global _DEFAULT
+    _DEFAULT = None
 
 
 def effect_key(tool_name: str, args: dict[str, Any], run_id: str) -> str:

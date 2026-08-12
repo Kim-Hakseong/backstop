@@ -17,7 +17,7 @@
 - 목표: 프로젝트 생성, $150 크레딧 폼 제출, Vertex AI / Cloud Run / Pub/Sub / Firestore API 활성화
 - 완료 조건: `gcloud run services list`가 에러 없이 빈 목록을 반환한다
 - 예상: 1h
-- [ ]
+- [ ] **차단: 사용자 조작 필요.** gcloud SDK 580.0.0 설치 완료(brew). `gcloud auth login`은 브라우저 대화형이라 에이전트가 대신 못 한다. 이 태스크가 P0 나머지 전부(T0.3 라이브 / T0.4 배포 / T0.5)의 유일한 선행 조건이다.
 
 ### T0.2 리포 스캐폴드
 - 목표: uv 프로젝트, `backstop/`·`subject_agent/`·`api/`·`tests/` 디렉터리, Makefile 6개 타깃(빈 껍데기 가능)
@@ -35,15 +35,15 @@
 ### T0.4 FastAPI 래핑 + Cloud Run 배포
 - 목표: `api/main.py`에 `/health`, `/run` 두 엔드포인트. Cloud Run 배포(min-instances=0)
 - 완료 조건: **공개 URL이 `/health`에 200을 반환한다**
-- 예상: 2.5h
-- [ ]
+- 예상: 2.5h / 실소요: 0.6h (코드), 배포 미완
+- [ ] **코드 완료, 인증 대기.** `api/main.py`(/health, /run) + `Dockerfile` + `scripts/deploy.sh`(min-instances=0). 로컬에서 컨테이너와 동일한 진입점(`uvicorn api.main:app`)이 `/health` 200 확인됨. `tests/test_health.py`가 회귀를 막는다. 남은 건 `gcloud auth login` 뿐이다.
 - ⚠️ 이 태스크가 08-14까지 안 끝나면 전체 계획을 재검토한다
 
 ### T0.5 Firestore 쓰기 1건
 - 목표: 도구 호출 결과를 Firestore `events`에 1건 쓴다
 - 완료 조건: 콘솔에서 문서 1건이 눈에 보인다
 - 예상: 1h
-- [ ]
+- [ ] **스크립트 준비 완료, 인증 대기.** `scripts/firestore_smoke.py` — `events` 문서 1건을 쓰고 콘솔 링크를 출력한다.
 
 ### T0.6 워크숍 시청 (고정 일정)
 - 목표: 08-14 13:00 KST "Build a Long-Running Agent: Persistent Workflows with Google ADK" (멱등성 함정)
@@ -346,7 +346,7 @@
 | 날짜 | Phase | 변경 |
 |---|---|---|
 | 08-12 | P0 | LOG.md 초안 작성. 스프린트 시작 |
-| | | |
+| 08-12 | P0 | Hour 0. T0.2 완료. T0.3/T0.4/T0.5는 코드·스크립트 완료 후 인증 대기. gcloud SDK 설치. 커밋 3건 |
 
 ---
 

@@ -1,0 +1,30 @@
+{
+  "_comment": "원장 조회에 필요한 복합 인덱스. events 는 run_id 로 걸러 seq 로 정렬한다(재생 순서). effects 는 run_id + idem_key 로 관문 ①이 중복을 조회한다. 없으면 FailedPrecondition 400.",
+  "indexes": [
+    {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "run_id", "order": "ASCENDING" },
+        { "fieldPath": "seq", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "run_id", "order": "ASCENDING" },
+        { "fieldPath": "seq", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "effects",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "run_id", "order": "ASCENDING" },
+        { "fieldPath": "idem_key", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

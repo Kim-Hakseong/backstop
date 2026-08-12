@@ -101,7 +101,7 @@ STEPS: list[Step] = [
 ]
 
 
-def default_context(vendor_id: str = "acme-corp") -> dict[str, Any]:
+def context_for(vendor_id: str) -> dict[str, Any]:
     return {
         "vendor_id": vendor_id,
         "contact": f"ap@{vendor_id}.example",
@@ -109,6 +109,40 @@ def default_context(vendor_id: str = "acme-corp") -> dict[str, Any]:
         "line_item": "one laptop",
         "due_date": "2026-09-15",
     }
+
+
+def default_context(vendor_id: str = "acme-corp") -> dict[str, Any]:
+    return context_for(vendor_id)
+
+
+def _display_vendor(vendor_id: str) -> str:
+    """"acme-corp" → "ACME Corp".
+
+    v3 에서 들어간 표시용 정규화. 사람이 읽기 좋으라고 넣은 변경이고, 기능적으로는
+    같은 벤더를 가리킨다. **그런데 멱등성 키가 이 문자열 위에서 계산된다.**
+    """
+    head, _, tail = vendor_id.partition("-")
+    return f"{head.upper()} {tail.title()}".strip()
+
+
+# 에이전트 버전별 인자 변형. v1 이 과거 원장을 만든 버전이다.
+#
+# v3 는 `erp.create_po` 에 넘기는 vendor_id 표기만 바꾼다. 메일 본문·수신자는
+# 건드리지 않는다 — 실제 프롬프트 수정이 대개 이런 모양이기 때문이다.
+AGENT_VERSIONS: dict[str, dict[str, Any]] = {
+    "v1": {},
+    "v3": {
+        "erp.create_po": lambda args: {
+            **args,
+            "vendor_id": _display_vendor(args["vendor_id"]),
+        }
+    },
+}
+
+
+def apply_version(version: str, tool: str, args: dict[str, Any]) -> dict[str, Any]:
+    transform = AGENT_VERSIONS.get(version, {}).get(tool)
+    return transform(args) if transform else args
 
 
 class _Tool:

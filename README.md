@@ -19,8 +19,9 @@ make gate      # 재생 + 분기 게이트. 중복 발견 시 exit 1
 **Backstop 에서 LLM 은 아무것도 차단하지 않는다.** 판정은 집합 연산이고 순수 함수이며
 단위 테스트가 붙어 있다. Gemini 는 분기 카드의 설명 한 문장에만 쓰인다.
 
-**구현 현황 (08-12, P1 진행 중)**: 원장 스키마 · ADK 에이전트 · Cloud Run 배포까지 완료.
-`make replay` / `make gate` 는 P3에서 동작한다. 아래 스키마는 확정본이다.
+**구현 현황 (08-12, P3 완료)**: 원장 · 관문 ① · Pub/Sub 비동기 실행 · 크래시 재개 ·
+재생 하네스 · 관문 ②까지 동작한다. `make replay` / `make gate` / `make bench` /
+`make demo` 전부 API 키 없이 돈다.
 
 배포 URL: https://backstop-api-911984605187.us-central1.run.app/health
 
@@ -111,12 +112,44 @@ make gate      # 재생 + 분기 게이트. 중복 발견 시 exit 1
 
 ## 측정 수치
 
-`make bench` 실측값으로 채운다. 측정 전에는 비워 둔다.
+아래는 전부 `make bench` 출력에서 그대로 옮긴 실측값이다 (2026-08-12, M4 macOS, 오프라인).
 
 | 항목 | 값 |
 |---|---|
-| 이벤트 수 | `<TBD>` |
-| 재생 소요 | `<TBD>` |
-| 재생 중 LLM 호출 수 | `<TBD>` |
-| 재생 중 외부 호출 수 | `<TBD>` |
-| 차단된 중복 부작용 | `<TBD>` |
+| 기간 | 6주 |
+| 실행(run) 수 | 4 |
+| 원장 이벤트 수 | 1,094 |
+| 재생한 스텝 수 | 42 |
+| 비교한 과거 부작용 수 | 42 |
+| **원장 로드 + 재생 + 게이트 소요** | **1.7 ms** (5회 중 최속) |
+| 재생 중 외부 호출 수 | **0** |
+| 재생 중 LLM 호출 수 | **0** |
+| 차단된 중복 부작용 | **3** (`DUPLICATE`) |
+| 종료 코드 | 1 |
+
+**LLM 호출에 대해 정확히**: 재생과 판정 경로의 모델 호출은 **0회**다. `--narrate` 를 켜면
+분기 3건의 설명 문장을 만드는 데 **3회** 호출된다(상한 5회). 그 문장이 없어도 판정과
+종료 코드는 똑같다.
+
+```
+$ make gate
+DUPLICATE 3   MISSING 0   MUTATED 0
+DEPLOY BLOCKED — 3 DUPLICATE SIDE EFFECT(S)
+```
+
+**종료 코드에 대해 정확히**: 게이트 명령 자체는 차단 시 **1**, 통과 시 **0** 을 반환한다.
+`make gate` 로 감싸면 GNU make 규칙에 따라 실패한 레시피가 **2** 로 보고된다(make 는 항상 2다).
+CI 는 "0 이 아니면 차단"으로 보면 되고, 정확한 코드가 필요하면 명령을 직접 부른다.
+
+```
+$ uv run python -m backstop.cli gate ; echo "exit=$?"
+DEPLOY BLOCKED — 3 DUPLICATE SIDE EFFECT(S)
+exit=1
+
+$ uv run python -m backstop.cli gate --version v1 ; echo "exit=$?"   # 원장을 만든 버전 그대로
+DEPLOY ALLOWED — 0 DUPLICATE SIDE EFFECTS
+exit=0
+```
+
+두 번째 명령이 중요하다. 게이트가 **항상** 빨간불이면 하드코딩과 구분되지 않는다.
+원장을 만든 버전(v1)을 그대로 재생하면 분기는 0건이고 배포가 통과한다.

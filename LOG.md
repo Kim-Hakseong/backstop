@@ -86,8 +86,10 @@
 ### T1.3 ADK 콜백 → 원장
 - 목표: `before_tool_callback`/`after_tool_callback`에서 이벤트 기록
 - 완료 조건: 에이전트 1회 실행 시 도구 호출 수만큼 `events` 문서가 생긴다
-- 예상: 3h
-- [ ]
+- 예상: 3h / 실소요: 1.4h
+- [x] 08-12 (인메모리 검증 완료, Firestore 종단 확인은 인덱스 생성 대기). `backstop/ledger.py`(Event/Effect + InMemory/Firestore 백엔드) + `subject_agent/callbacks.py`. 테스트 13건.
+- 🔴 **함정 1 — ADK는 콜백을 키워드로 부른다.** `callback(tool=, args=, tool_context=, tool_response=)`. 파라미터명을 `context`로 뒀더니 단위 테스트는 전부 통과하는데 라이브에서 `TypeError`가 났다. 위치 인자로만 테스트했기 때문이다. 호출 규약을 고정하는 테스트를 추가했다(`test_callbacks_accept_adk_keyword_calling_convention`). 출처: `google/adk/flows/llm_flows/functions.py:593`
+- 🔴 **함정 2 — Firestore 복합 인덱스.** `where(run_id) + order_by(seq)`는 인덱스 없이는 `FailedPrecondition 400`이다. `firestore.indexes.json`을 커밋했다(events 2종 + effects 1종). 새 프로젝트에서 재현하려면 이게 필요하다.
 
 ### T1.4 멱등성 키 설계
 - 목표: `(tool_name, canonical_args_hash, run_scope)` 조합. 정규화 규칙 문서화
@@ -104,14 +106,17 @@
 ### T1.5 IdempotencyGuard (관문 ①)
 - 목표: 같은 키의 부작용이 두 번 나가지 않게 차단. 차단 시 `idempotent_skip` 이벤트 기록
 - 완료 조건: 같은 도구 호출 2회 → `effects` 1건 + `idempotent_skip` 1건
-- 예상: 2.5h
-- [ ]
+- 예상: 2.5h / 실소요: 1.0h
+- [x] 08-12. **완료 조건 확인**: 같은 호출 2회 → `events=[tool_call, tool_result, idempotent_skip]`, `effects=1`, 스텁이 실제로 발행한 PO 1건. 2번째 호출은 이전 결과(PO-6255)를 그대로 돌려받는다.
+- 차단은 **예외가 아니라 이전 결과 반환**이다. ADK는 `before_tool_callback`이 dict를 반환하면 도구를 건너뛰고 그 dict를 결과로 쓴다. 예외를 던지면 에이전트가 멈춰서 재개 시나리오가 성립하지 않는다.
+- 🔴 **함정 3 (관문 ①을 무력화할 뻔한 것) — ADK는 도구를 건너뛰어도 `after_tool_callback`을 그대로 부른다** (`functions.py` Step 5는 Step 2의 단축과 무관하게 실행된다). after에서 무조건 부작용을 기록하면 **관문 ①이 막은 바로 그 중복이 원장에 남는다.** 차단된 슬롯을 표시해 after가 건너뛰게 했고, `test_after_callback_does_not_record_effect_for_blocked_call`이 이를 고정한다.
+- 진실의 근거는 프로세스 메모리가 아니라 원장이다 → 새 프로세스(새 콜백 인스턴스)로 재개해도 중복이 막힌다(`test_resume_after_crash_does_not_duplicate`). P2 재개 시나리오의 축소판이 이미 통과한다.
 
 ### T1.6 test_idempotency.py
 - 목표: 관문 ① 불변식 테스트 4건
 - 완료 조건: `make test` 통과
-- 예상: 1.5h
-- [ ]
+- 예상: 1.5h / 실소요: (T1.4·T1.5에 포함)
+- [x] 08-12. 요구는 4건인데 25건이 됐다 — `tests/test_idempotency.py` 15건(키 정규화) + `tests/test_guard.py` 10건(관문 ① 동작). `make test` 59건 통과.
 
 ### T1.7 OTel 스팬
 - 목표: 콜백에서 스팬 열고 닫기. `trace_id`/`span_id`를 이벤트에 저장

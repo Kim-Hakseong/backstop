@@ -49,6 +49,9 @@ class Effect:
     event_id: str
     target: str
     at: datetime
+    # 차단된 재시도에 돌려줄 원래 결과. 관문 ①은 예외를 던지지 않고 이걸 반환한다 —
+    # 에이전트는 중단되지 않고 계속 진행해야 한다.
+    result: dict[str, Any] = field(default_factory=dict)
     effect_id: str | None = None
 
     def to_doc(self) -> dict[str, Any]:
@@ -102,7 +105,12 @@ class InMemoryLedger:
         return event
 
     def append_effect(
-        self, run_id: str, idem_key: str, event_id: str, target: str
+        self,
+        run_id: str,
+        idem_key: str,
+        event_id: str,
+        target: str,
+        result: dict[str, Any] | None = None,
     ) -> Effect:
         effect = Effect(
             run_id=run_id,
@@ -110,6 +118,7 @@ class InMemoryLedger:
             event_id=event_id,
             target=target,
             at=self._clock.now(),
+            result=result or {},
             effect_id=f"eff-{len(self._effects)}",
         )
         self._effects.append(effect)
@@ -178,7 +187,12 @@ class FirestoreLedger:
         return Event(**{**event.to_doc(), "event_id": ref.id})
 
     def append_effect(
-        self, run_id: str, idem_key: str, event_id: str, target: str
+        self,
+        run_id: str,
+        idem_key: str,
+        event_id: str,
+        target: str,
+        result: dict[str, Any] | None = None,
     ) -> Effect:
         effect = Effect(
             run_id=run_id,
@@ -186,6 +200,7 @@ class FirestoreLedger:
             event_id=event_id,
             target=target,
             at=self._clock.now(),
+            result=result or {},
         )
         ref = self._db.collection("effects").document()
         ref.set(effect.to_doc())

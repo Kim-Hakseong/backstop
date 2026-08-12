@@ -51,11 +51,14 @@ def test_event_count_matches_tool_call_count():
 
 
 def test_seq_is_monotonic_and_dense():
+    # 인자를 매번 다르게 준다. 같은 인자면 관문 ①이 2·3번째를 차단해서
+    # 이 테스트가 검증하려는 seq 증가가 아니라 차단 동작을 재는 꼴이 된다.
     ledger, cb = make()
     for i in range(3):
         ctx = SimpleNamespace(function_call_id=f"fc-{i}")
-        cb.before_tool(TOOL, ARGS, ctx)
-        cb.after_tool(TOOL, ARGS, ctx, RESPONSE)
+        args = {**ARGS, "line_item": f"item-{i}"}
+        cb.before_tool(TOOL, args, ctx)
+        cb.after_tool(TOOL, args, ctx, RESPONSE)
 
     assert [e.seq for e in ledger.events("run-1")] == [0, 1, 2, 3, 4, 5]
 

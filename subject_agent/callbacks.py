@@ -20,6 +20,7 @@ from backstop.ledger import (
     Ledger,
     effect_key,
 )
+from backstop.otel import ToolSpans
 
 # 부작용 대상 식별자를 뽑을 때 우선적으로 보는 필드
 _TARGET_FIELDS = ("po_id", "message_id", "payment_id", "invoice_id", "id")
@@ -40,9 +41,10 @@ def target_of(tool_name: str, response: Any) -> str:
 class LedgerCallbacks:
     """한 run 에 대응하는 콜백 쌍."""
 
-    def __init__(self, ledger: Ledger, run_id: str) -> None:
+    def __init__(self, ledger: Ledger, run_id: str, spans: ToolSpans | None = None) -> None:
         self._ledger = ledger
         self._run_id = run_id
+        self._spans = spans or ToolSpans()
         # before 에서 만든 이벤트 id 를 after 로 넘긴다. 같은 도구를 연속 호출해도
         # 섞이지 않도록 ADK 의 function_call_id 로 구분한다.
         self._pending: dict[str, str] = {}
@@ -64,6 +66,8 @@ class LedgerCallbacks:
         """
         slot = self._slot(tool.name, tool_context)
         key = effect_key(tool.name, args, self._run_id)
+        # 스팬은 차단 여부와 무관하게 연다. 막힌 호출도 감사 대상이다(R4).
+        trace_id, span_id = self._spans.start(slot, tool.name)
 
         prior = self._ledger.find_effect(self._run_id, key)
         if prior is not None:
@@ -72,6 +76,8 @@ class LedgerCallbacks:
                 kind=IDEMPOTENT_SKIP,
                 tool_name=tool.name,
                 args=args,
+                trace_id=trace_id,
+                span_id=span_id,
             )
             self._skipped.add(slot)
             # dict 를 반환하면 ADK 가 도구 실행을 건너뛰고 이걸 결과로 쓴다.
@@ -86,6 +92,8 @@ class LedgerCallbacks:
             kind=TOOL_CALL,
             tool_name=tool.name,
             args=args,
+            trace_id=trace_id,
+            span_id=span_id,
         )
         self._pending[slot] = event.event_id or ""
         return None  # None = 도구를 정상 실행한다
@@ -104,13 +112,17 @@ class LedgerCallbacks:
         # 원장에 남는다 — 관문이 있으나 마나가 된다.
         if slot in self._skipped:
             self._skipped.discard(slot)
+            self._spans.end(slot, blocked=True)
             return None
 
+        trace_id, span_id = self._spans.end(slot)
         event = self._ledger.append_event(
             run_id=self._run_id,
             kind=TOOL_RESULT,
             tool_name=tool.name,
             args=args,
+            trace_id=trace_id,
+            span_id=span_id,
         )
         call_event_id = self._pending.pop(slot, event.event_id)
 

@@ -5,7 +5,7 @@
 **실제 마감**: 2026-09-01 09:00 KST (Aug 31 17:00 PDT)
 **가용 시간 가정**: 하루 4~6시간 / 총 80~110시간
 
-**현재 Phase**: P1 (P0 게이트 08-12 통과, 계획 대비 2일 선행)
+**현재 Phase**: P2 (P0·P1 게이트 08-12 통과. P1은 계획 대비 6일 선행)
 **배포 URL**: https://backstop-api-911984605187.us-central1.run.app
 **현재 잔여 크레딧**: 미확인 — 08-12 Cloud Build 1회 + Cloud Run + Vertex 호출 3회로 실사용은 $1 미만 추정. **콘솔에서 눈으로 확인 필요**(CLAUDE.md §10)
 
@@ -121,10 +121,18 @@
 ### T1.7 OTel 스팬
 - 목표: 콜백에서 스팬 열고 닫기. `trace_id`/`span_id`를 이벤트에 저장
 - 완료 조건: 이벤트 문서에서 스팬 ID로 추론 체인을 역추적할 수 있다
-- 예상: 2h
-- [ ]
+- 예상: 2h / 실소요: 0.7h
+- [x] 08-12. `backstop/otel.py` — `ToolSpans`. 스팬은 `before_tool`에서 열려 `after_tool`에서 닫힌다(두 콜백에 걸쳐 있어 `with` 불가, 수동 start/end). 테스트 6건.
+- **완료 조건 확인 (Firestore 실물)**: `events/p11ooSoAX0DokSUPCxgH`(tool_call)와 `events/vWWURLXQardGvqG3zoNf`(tool_result)가 같은 `trace_id=d0342f5ca321f87d…`, `span_id=0bca83a4c38596af`를 공유한다. effect → event_id → span 경로가 성립한다 = 마커 카드의 `[trace ↗]` 링크 근거.
+- 🔴 **함정 4 — TracerProvider가 없으면 OTel은 NonRecordingSpan을 주고 id가 전부 0이 된다.** 그러면 이벤트에 필드는 있는데 역참조가 불가능한 상태로 조용히 통과한다. `_ensure_provider()`가 SDK provider를 달고, `test_span_ids_are_real_not_zeros`가 0을 거부한다. **익스포터는 달지 않았다** — 필요한 건 실제 id 값이지 외부 전송이 아니다.
+- 관문 ①이 차단한 호출도 스팬을 남긴다(`backstop.idempotent_skip=true` 속성). 막힌 호출이 감사에서 사라지면 안 된다.
 
 **P1 검증 게이트**: 같은 호출 2회 → 부작용 1건. `make test` 통과. 태그 `p1-gate-passed`.
+
+✅ **08-12 통과.** 같은 호출 2회 → `effects` 1건 + `idempotent_skip` 1건(`test_guard.py` 10건). `make test` 66건 통과. Firestore 종단 확인 완료. 태그 `p1-gate-passed`.
+계획(08-18) 대비 6일 선행.
+
+⚠️ **P2로 넘길 미해결 항목**: ADK가 기록하는 도구 이름이 `create_po`다(함수명). PRD·Design의 카드 예시는 `erp.create_po#PO-2291` 형태를 쓴다. 원장 **내부** 일관성은 유지되므로(키는 같은 이름으로 계산·비교된다) 게이트 정확성에는 영향이 없다. T2.5 시드 원장 생성에서 이름 규칙을 확정한다.
 
 ---
 
@@ -376,6 +384,7 @@
 | 08-12 | P0 | LOG.md 초안 작성. 스프린트 시작 |
 | 08-12 | P0 | Hour 0. T0.2 완료. T0.3/T0.4/T0.5는 코드·스크립트 완료 후 인증 대기. gcloud SDK 설치. 커밋 3건 |
 | 08-12 | P0 | **P0 게이트 통과.** T0.1/T0.3/T0.4/T0.5 완료. Cloud Run 공개 URL 200. Gemini 3.x 리전 미서빙 발견 → global 엔드포인트로 고정. 현재 Phase를 P1로 갱신 |
+| 08-12 | P1 | **P1 게이트 통과.** T1.1~T1.7 전부 완료. 원장·멱등성 키·관문 ①·OTel 스팬. 테스트 66건. ADK 콜백 함정 3개(키워드 호출 규약 / 건너뛴 호출에도 after 실행 / 스팬 id 0) 문서화. 현재 Phase를 P2로 갱신 |
 
 ---
 

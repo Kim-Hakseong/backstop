@@ -329,14 +329,15 @@
 ### T5.2 README
 - 목표: 3줄 재현 + 스키마 표 + "시뮬레이션 원장" 고지 + `make bench` 실측 수치
 - 완료 조건: 처음 보는 사람이 3분 안에 `make replay`를 성공시킨다
-- 예상: 2h
-- [ ]
+- 예상: 2h / 실소요: 0.6h
+- [x] 08-12. **완료 조건 확인 (실제 클린 클론)**: 저장소를 임시 디렉터리로 clone → `make setup && make gate` → 자격증명 없이 `DUPLICATE 3` + `DEPLOY BLOCKED` 재현. 스키마 표 4종, 정규화 규칙표, 실측 수치표, 종료 코드 설명, 시뮬레이션 고지, 아키텍처 다이어그램 포함.
 
 ### T5.3 Devpost writeup 5섹션
 - 목표: @SUBMISSION.md 초안을 실측 수치로 갱신해 Devpost에 붙여넣기
 - 완료 조건: 플레이스홀더 0개
-- 예상: 2h
-- [ ]
+- 예상: 2h / 실소요: 0.5h
+- [x] 08-12. **완료 조건 확인**: `grep '<TBD>\|<N>' README.md SUBMISSION.md` → 0건. 5섹션 전부 실측 수치로 채워짐. Challenges는 4개이고 전부 **실제로 겪은** 것이다(중복 유출 / 부작용 누락 / pending 크래시 창 / Narrator 환각 + 시뮬레이션 원장 + Memory Bank 미연동).
+- ⚠️ **미정 항목**: 저장소를 공개할 때 `PRD.md`·`LOG.md`·`CLAUDE.md`·`PROMPT_ralph.md`를 포함할지. LOG의 버그 이력은 심사 배점 30%(Architectural Discipline)에 유리하지만, PRD Section 1A/1C는 **다른 참가자 아이디어 분석과 수상 확률 추정**이라 공개 시 인상이 갈릴 수 있다. 사용자 결정 필요.
 
 ### T5.4 영상 녹화
 - 목표: 3분 이내, 컷 3개 이하, @PRD.md Section 4 스크립트 그대로
@@ -349,8 +350,14 @@
 ### T5.5 Rules 탭 재확인
 - 목표: 상금 구조 / 심사 배점 / IP·오픈소스 조항을 직접 읽는다
 - 완료 조건: @PRD.md Section 0의 "미공개" 항목이 채워지거나 여전히 미공개임이 확인된다
-- 예상: 0.5h
-- [ ]
+- 예상: 0.5h / 실소요: 0.4h
+- [x] 08-12. Rules 전문 확인. **미공개 항목 3개가 전부 채워졌다.**
+- **상금**: 총 $175,000(초기 수집 $180,000은 오독). Fleet 트랙 $20,000. 추가로 **Individual/Hobbyist 2×$10,000**(solo 대상)와 **Best Architectural Design 2×$5,000**에 별도 작업 없이 후보가 된다.
+- **심사 배점 확정**: Innovation & Operational Utility **40%** / Architectural Discipline & Tech Stack **30%** / Demo & Production Readiness **30%**. Stage 3 보너스 최대 0.6점. 최종 1~6점.
+  - 🔴 **가장 큰 배점(40%)이 우리의 가장 약한 축이다.** 우리는 "에이전트가 일한다"가 아니라 "막는다"라서 운영 가치를 명시적으로 말하지 않으면 손해다. write-up 첫 문단과 영상 0:00–0:30을 문제 진술로 쓰는 현재 구성이 이 배점에 맞다.
+- **IP**: 참가자가 보유. Google에 평가·홍보 목적 비독점 라이선스 부여. 걸림돌 없음.
+- **오픈소스**: 라이선스 준수 조건으로 허용 → 폰트 SIL OFL 고지 완료.
+- 🔴 **영상 요건 충돌 발견**: Rules 원문이 "made **publicly visible** on YouTube or Vimeo"다. 기존 계획의 "미등록(unlisted) 공개"는 위험하다 → **완전 공개로 변경.** 길이 상한은 4분(우리 3분).
 
 **P5 검증 게이트**: 제출물 4종이 전부 파일/URL로 존재. 태그 `p5-gate-passed`.
 

@@ -61,7 +61,7 @@ Agent Registry에 등록된 조직 내 여러 에이전트의 원장을 한 게�
 
 | 항목 | 상태 | 링크 |
 |---|---|---|
-| 데모 영상 (3분 이내, 공개) | ☐ | |
+| 데모 영상 (3분 이내, **완전 공개** YouTube/Vimeo) | ☐ | 미등록(unlisted) 금지 — Rules 원문이 "publicly visible" |
 | 코드 저장소 (공개) | ☐ | |
 | **아키텍처 다이어그램** (이미지, 필수) | ☑ | `docs/architecture.svg` (자체 완결 SVG, 폰트 임베드) · `docs/architecture.png` (3200×1800, 2x) |
 | Write-up 5섹션 | ☐ | |
@@ -108,7 +108,7 @@ Agent Registry에 등록된 조직 내 여러 에이전트의 원장을 한 게�
 6. 아키텍처 다이어그램에 Gemini 3.5 Flash / Google ADK / Cloud Run·Pub/Sub·Firestore 라벨 확인
 7. Devpost 폼: 트랙 = Fortified Enterprise Fleet
 8. Devpost 폼: Built with 태그 입력
-9. 영상 길이 3분 이내 확인, 공개 설정 확인 (미등록 공개도 허용되는지 Rules 재확인)
-10. Rules 탭 IP·오픈소스 조항 최종 확인 (fetch 시점 미확인 항목)
+9. 영상 길이 4분 이내 확인(우리 구성 3분) + **완전 공개** 설정 확인. Rules 원문은 "uploaded to and made publicly visible on YouTube or Vimeo" — 미등록은 쓰지 않는다
+10. ~~Rules 탭 IP·오픈소스 조항 확인~~ — 08-12 완료. 참가자가 IP 보유, Google에 평가·홍보용 비독점 라이선스 부여. 오픈소스 사용 허용(라이선스 준수 조건) → 폰트 OFL 고지 완료
 11. 제출 → **"Submitted" 상태를 눈으로 확인**
 12. 제출 후 다른 기기에서 제출 페이지 열어 첨부물 4종 렌더링 확인

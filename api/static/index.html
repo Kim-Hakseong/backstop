@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backstop — deploy gate for long-running agents</title>
+<style>
+  :root{
+    --bg:#0A0C10; --surface:#12151C; --surface-2:#191D26;
+    --border:#232937; --border-strong:#323A4D;
+    --fg:#E8EBF2; --fg-muted:#8A93A6; --fg-dim:#5A6274;
+    --pass:#3DDC97; --block:#FF4D4D; --warn:#F5A524; --info:#4C8DFF; --inert:#3A4152;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--ui);
+    font-size:14px;line-height:20px;letter-spacing:-0.01em}
+  .wrap{max-width:1440px;margin:0 auto;padding:0 32px}
+  .topbar{height:40px;display:flex;align-items:center;justify-content:space-between;
+    border-bottom:1px solid var(--border)}
+  .brand{font-weight:600;letter-spacing:0.08em;text-transform:uppercase;font-size:11px}
+  .subject{font-family:var(--mono);font-size:12px;color:var(--fg-muted)}
+
+  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;padding:32px 0 24px}
+  .label{font-size:11px;line-height:16px;letter-spacing:0.08em;text-transform:uppercase;
+    color:var(--fg-muted)}
+  .value{font-family:var(--mono);font-size:48px;line-height:52px;letter-spacing:-0.02em;
+    font-variant-numeric:tabular-nums;margin-top:8px}
+  .value.pass{color:var(--pass)}
+
+  .toggle{display:flex;gap:8px;align-items:center;padding-bottom:16px}
+  .toggle button{font-family:var(--mono);font-size:12px;background:none;color:var(--fg-muted);
+    border:1px solid var(--border);border-radius:6px;padding:6px 12px;cursor:pointer}
+  .toggle button[aria-pressed="true"]{color:var(--fg);border-color:var(--border-strong);
+    background:var(--surface-2)}
+  .toggle .hint{color:var(--fg-dim);font-size:12px;margin-left:8px}
+
+  .timeline-box{border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+    padding:24px 0}
+  canvas{display:block;width:100%;height:180px}
+  .weeks{display:grid;grid-template-columns:repeat(6,1fr);margin-top:8px}
+  .weeks span{font-family:var(--mono);font-size:11px;color:var(--fg-dim);
+    border-left:1px solid var(--border);padding-left:8px}
+  .marker-note{font-family:var(--mono);font-size:12px;color:var(--block);margin-top:12px;
+    min-height:18px}
+  .marker-note.clear{color:var(--fg-muted)}
+
+  .banner{margin:24px 0;padding:16px;border-left:4px solid var(--block);
+    background:rgba(255,77,77,0.12);font-weight:600;font-size:15px;text-transform:uppercase;
+    color:var(--block);letter-spacing:0.02em}
+  .banner.passed{border-left-color:var(--pass);background:rgba(61,220,151,0.12);color:var(--pass)}
+
+  .cards{display:flex;flex-direction:column;gap:16px}
+  .card{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--block);
+    border-radius:8px;padding:16px;box-shadow:0 1px 0 rgba(255,255,255,0.03) inset}
+  .card.MUTATED{border-left-color:var(--warn)} .card.MISSING{border-left-color:var(--info)}
+  .card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .card-title{font-weight:600;font-size:15px;line-height:22px}
+  .badge{font-family:var(--mono);font-size:11px;text-transform:uppercase;border-radius:4px;
+    padding:2px 8px;background:rgba(255,77,77,0.15);color:var(--block)}
+  .badge.MUTATED{background:rgba(245,165,36,0.15);color:var(--warn)}
+  .badge.MISSING{background:rgba(76,141,255,0.15);color:var(--info)}
+  .row{display:flex;gap:12px;margin:4px 0}
+  .row .k{width:96px;flex:none;font-size:11px;text-transform:uppercase;color:var(--fg-muted);
+    letter-spacing:0.08em;padding-top:2px}
+  .row .v{font-family:var(--mono);font-size:13px;word-break:break-all}
+  .keydiff{background:var(--surface-2);border-radius:4px;padding:12px;margin-top:12px;
+    font-family:var(--mono);font-size:13px}
+  .keydiff div{display:flex;gap:12px}
+  .keydiff .who{color:var(--fg-muted);width:64px;flex:none}
+  .mismatch{color:var(--block)}
+  .narrative{margin-top:12px;padding-top:12px;border-top:1px solid var(--border);
+    color:var(--fg-dim);font-size:13px;display:flex;justify-content:space-between;gap:16px}
+  .narrative cite{font-style:normal;white-space:nowrap;color:var(--fg-dim);font-size:11px}
+
+  .cta{border-top:1px solid var(--border);margin-top:32px;padding:24px 0 48px}
+  pre{background:var(--surface-2);border-radius:4px;padding:16px;font-family:var(--mono);
+    font-size:13px;overflow-x:auto;margin:12px 0}
+  .cmt{color:var(--pass)} .dollar{color:var(--fg-dim)}
+  .note{color:var(--warn);font-size:12px}
+  .foot{color:var(--fg-dim);font-size:12px;margin-top:8px}
+  .links{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap}
+  .links a{border:1px solid var(--border);border-radius:6px;padding:8px 16px;color:var(--fg);
+    text-decoration:none;font-size:14px}
+  .links a:hover{border-color:var(--border-strong)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand">Backstop</div>
+    <div class="subject">subject-agent · ledger v1 → candidate <span id="verLabel">v3</span></div>
+  </div>
+
+  <div class="tiles">
+    <div><div class="label">LLM calls during replay</div><div class="value pass" id="sLlm">0</div></div>
+    <div><div class="label">External calls</div><div class="value pass" id="sExt">0</div></div>
+    <div><div class="label">Ledger events</div><div class="value" id="sEvents">—</div></div>
+    <div><div class="label">Replay time</div><div class="value" id="sTime">—</div></div>
+  </div>
+
+  <div class="toggle">
+    <button id="bV3" aria-pressed="true">candidate v3</button>
+    <button id="bV1" aria-pressed="false">control v1 (wrote the ledger)</button>
+    <span class="hint">the same gate, two versions — that is how you know it is not hardcoded red</span>
+  </div>
+
+  <div class="timeline-box">
+    <canvas id="tl"></canvas>
+    <div class="weeks"><span>Week 1</span><span>Week 2</span><span>Week 3</span><span>Week 4</span><span>Week 5</span><span>Week 6</span></div>
+    <div class="marker-note" id="note"></div>
+  </div>
+
+  <div class="banner" id="banner">—</div>
+  <div class="cards" id="cards"></div>
+
+  <div class="cta">
+    <div class="label">Reproduce this</div>
+    <pre><span class="dollar">$</span> git clone &lt;repo&gt; &amp;&amp; cd backstop
+<span class="dollar">$</span> make setup
+<span class="dollar">$</span> make gate          <span class="cmt"># no API key required</span></pre>
+    <div class="note">ledger: fixtures/ledger_6w.jsonl · 6 weeks, simulated run (not a real production log)</div>
+    <div class="foot">the gate command exits 1 when blocked, 0 when allowed. <code>make gate</code> reports 2 because GNU make always exits 2 on a failed recipe.</div>
+    <div class="links">
+      <a href="/health">API health</a>
+      <a href="/gate.json">raw gate output</a>
+      <a href="/docs">API docs</a>
+    </div>
+  </div>
+</div>
+
+<script>
+const C = {inert:'#3A4152', muted:'#8A93A6', block:'#FF4D4D', border:'#232937'};
+let DATA=null, VERSION='v3', HITS=[];
+
+const fmt = n => n.toLocaleString('en-US');
+
+async function boot(){
+  DATA = await (await fetch('gate.json')).json();
+  document.getElementById('bV3').onclick = () => select('v3');
+  document.getElementById('bV1').onclick = () => select('v1');
+  addEventListener('resize', draw);
+  addEventListener('hashchange', () => select(location.hash === '#v1' ? 'v1' : 'v3'));
+  // 딥링크: #v1 로 대조군 화면을 바로 연다 (데모 0:55–1:05)
+  select(location.hash === '#v1' ? 'v1' : 'v3');
+}
+
+function select(v){
+  VERSION = v;
+  if(location.hash !== '#' + v) history.replaceState(null, '', '#' + v);
+  document.getElementById('bV3').setAttribute('aria-pressed', String(v==='v3'));
+  document.getElementById('bV1').setAttribute('aria-pressed', String(v==='v1'));
+  document.getElementById('verLabel').textContent = v;
+  render();
+}
+
+function render(){
+  const block = DATA.versions[VERSION];
+  const s = block.stats;
+  document.getElementById('sLlm').textContent = s.llm_calls;
+  document.getElementById('sExt').textContent = s.external_calls;
+  document.getElementById('sEvents').textContent = fmt(s.events);
+  document.getElementById('sTime').textContent = s.replay_ms + 'ms';
+
+  const banner = document.getElementById('banner');
+  const n = block.counts.DUPLICATE;
+  banner.className = 'banner' + (block.blocked ? '' : ' passed');
+  banner.textContent = block.blocked
+    ? `Deploy blocked — ${n} duplicate side effect${n===1?'':'s'}`
+    : 'Deploy allowed — 0 duplicate side effects';
+
+  const note = document.getElementById('note');
+  note.className = 'marker-note' + (block.divergences.length ? '' : ' clear');
+  note.textContent = block.divergences.length
+    ? `${block.divergences.length} duplicate side effects · week 4`
+    : 'no divergence — this version would repeat nothing';
+
+  const cards = document.getElementById('cards');
+  cards.innerHTML = '';
+  block.divergences.forEach((d,i) => cards.appendChild(card(d,i,block.divergences.length)));
+  draw();
+}
+
+function card(d, i, total){
+  const el = document.createElement('div');
+  el.className = 'card ' + d.kind;
+  el.id = 'card-' + i;
+  const short = k => k ? k.slice(0,12) + '…' : '—';
+  el.innerHTML = `
+    <div class="card-head">
+      <div class="card-title">Divergence ${i+1} / ${total}</div>
+      <div class="badge ${d.kind}">${d.kind}</div>
+    </div>
+    <div class="row"><div class="k">Effect</div><div class="v">${d.target || d.tool_name}</div></div>
+    <div class="row"><div class="k">Run</div><div class="v">${d.run_id} · step ${d.step_index}</div></div>
+    <div class="row"><div class="k">Replay</div><div class="v">intent: NEW (not matched to any past effect)</div></div>
+    <div class="keydiff">
+      <div><span class="who">past</span><span>${short(d.past_key)}</span><span>${d.mismatch_field}=${JSON.stringify(d.past_value)}</span></div>
+      <div><span class="who">replay</span><span>${short(d.replay_key)}</span><span class="mismatch">${d.mismatch_field}=${JSON.stringify(d.replay_value)} ← mismatch</span></div>
+    </div>
+    ${d.narrative ? `<div class="narrative"><span>${d.narrative}</span><cite>— generated summary</cite></div>` : ''}`;
+  return el;
+}
+
+function draw(){
+  const cv = document.getElementById('tl');
+  const dpr = devicePixelRatio || 1;
+  const w = cv.clientWidth, h = 180;
+  cv.width = w*dpr; cv.height = h*dpr;
+  const g = cv.getContext('2d');
+  g.setTransform(dpr,0,0,dpr,0,0);
+  g.clearRect(0,0,w,h);
+
+  // week dividers
+  g.strokeStyle = C.border; g.lineWidth = 1;
+  for(let i=0;i<=6;i++){ const x=Math.round(w*i/6)+0.5; g.beginPath(); g.moveTo(x,0); g.lineTo(x,h); g.stroke(); }
+
+  // events: most of the ledger is ticks, drawn dim and dense
+  g.fillStyle = C.inert;
+  for(const e of DATA.events){
+    const x = e.t*w, y = 30 + ((Math.imul((x*1000|0)^0x9e37, 0x85eb)>>>17) % 120);
+    g.beginPath(); g.arc(x,y,1.5,0,6.283); g.fill();
+  }
+  // effects: brighter, larger
+  g.fillStyle = C.muted;
+  for(const e of DATA.effects){
+    const x = e.t*w, y = 30 + ((Math.imul((x*977|0)^0x51ed, 0xc2b2)>>>18) % 120);
+    g.beginPath(); g.arc(x,y,3,0,6.283); g.fill();
+  }
+
+  // divergence markers
+  HITS = [];
+  const ds = DATA.versions[VERSION].divergences;
+  g.fillStyle = C.block;
+  ds.forEach((d,i) => {
+    if(d.t == null) return;
+    const x = Math.round(d.t*w);
+    g.fillRect(x-1, 0, 3, h);
+    g.beginPath(); g.moveTo(x-6,0); g.lineTo(x+6,0); g.lineTo(x,8); g.closePath(); g.fill();
+    HITS.push({x, i});
+  });
+
+  cv.onclick = ev => {
+    const rect = cv.getBoundingClientRect();
+    const x = ev.clientX - rect.left;
+    let best=null, bd=1e9;
+    for(const hit of HITS){ const d=Math.abs(hit.x-x); if(d<bd){bd=d;best=hit;} }
+    if(best && bd<=6){
+      const el = document.getElementById('card-'+best.i);
+      el.scrollIntoView({behavior:'smooth', block:'center'});
+      el.style.borderColor = 'var(--border-strong)';
+      setTimeout(()=>{ el.style.borderColor=''; }, 900);
+    }
+  };
+}
+
+boot();
+</script>
+</body>
+</html>

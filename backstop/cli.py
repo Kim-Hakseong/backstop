@@ -6,6 +6,7 @@ API 키 없이 동작해야 한다(R2). 기본 경로에 네트워크가 없다.
 from __future__ import annotations
 
 import argparse
+import pathlib
 import sys
 import time
 
@@ -118,6 +119,106 @@ def cmd_bench(args) -> int:
     return 0
 
 
+def cmd_export(args) -> int:
+    """콘솔이 읽을 JSON 을 만든다.
+
+    화면은 이 파일 하나만 읽는다 — API 가 죽어도, 네트워크가 없어도 콘솔이 뜬다.
+    데모 무결성이 부산물이 아니라 요구사항이다(PRD 2-3).
+    """
+    import json
+    from datetime import datetime
+
+    from backstop.narrator import narrate_all
+
+    harness = ReplayHarness.from_fixture(args.fixture)
+
+    def instants(docs: list[dict]) -> list[str]:
+        return [d["at"] for d in docs if d.get("at")]
+
+    stamps = sorted(instants(harness._events))
+    start = datetime.fromisoformat(stamps[0])
+    end = datetime.fromisoformat(stamps[-1])
+    span = max((end - start).total_seconds(), 1.0)
+
+    def position(iso: str) -> float:
+        return (datetime.fromisoformat(iso) - start).total_seconds() / span
+
+    payload: dict = {
+        "ledger": args.fixture,
+        "simulated": True,
+        "weeks": 6,
+        "start": stamps[0],
+        "end": stamps[-1],
+        "events": [
+            {"t": round(position(e["at"]), 6), "kind": e["kind"]}
+            for e in harness._events
+            if e.get("at")
+        ],
+        "effects": [
+            {"t": round(position(e["at"]), 6), "target": e["target"]}
+            for e in harness._effects
+            if e.get("at") and e.get("status", "committed") == "committed"
+        ],
+        "versions": {},
+    }
+
+    effect_at = {e["idem_key"]: e.get("at") for e in harness._effects}
+
+    for version in (args.candidate, args.baseline):
+        # `make bench` 와 **같은 정의**로 잰다: 원장 로드 + 재생 + 판정, 5회 중 최속.
+        # 화면과 README 에 다른 숫자가 뜨면 어느 쪽도 못 믿게 된다(R7).
+        timings = []
+        for _ in range(5):
+            started = time.perf_counter()
+            fresh = ReplayHarness.from_fixture(args.fixture)
+            result = fresh.replay(version=version)
+            divergences = compute(result.past_effects, result.intents)
+            timings.append(time.perf_counter() - started)
+
+        divergences = narrate_all(divergences)
+        tally = counts(divergences)
+        payload["versions"][version] = {
+            "stats": {
+                "events": result.events_read,
+                "steps_replayed": len(result.intents),
+                "past_effects": len(result.past_effects),
+                "replay_ms": round(min(timings) * 1000, 2),
+                "external_calls": result.external_calls,
+                "llm_calls": result.llm_calls,
+            },
+            "counts": tally,
+            "blocked": is_blocked(divergences),
+            "divergences": [
+                {
+                    "run_id": d.run_id,
+                    "kind": d.kind,
+                    "tool_name": d.tool_name,
+                    "step_index": d.step_index,
+                    "target": d.target,
+                    "mismatch_field": d.mismatch_field,
+                    "past_value": d.past_value,
+                    "replay_value": d.replay_value,
+                    "past_key": d.past_key,
+                    "replay_key": d.replay_key,
+                    "narrative": d.narrative,
+                    "t": round(position(effect_at[d.past_key]), 6)
+                    if d.past_key and effect_at.get(d.past_key)
+                    else None,
+                }
+                for d in divergences
+            ],
+        }
+
+    out = pathlib.Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(payload, indent=2))
+    print(f"wrote {out}  ({out.stat().st_size:,} bytes)")
+    print(f"  events {len(payload['events'])}  effects {len(payload['effects'])}")
+    for v, block in payload["versions"].items():
+        print(f"  {v}: {block['counts']}  blocked={block['blocked']}")
+    return 0
+
+
 def cmd_demo(args) -> int:
     """오프라인 크래시·재개 시연. 클라우드 없이 관문 ①을 보여준다."""
     from datetime import datetime, timezone
@@ -189,6 +290,12 @@ def main(argv: list[str] | None = None) -> int:
     p_bench.add_argument("--version", default=CANDIDATE_VERSION)
     p_bench.add_argument("--repeat", type=int, default=5)
     p_bench.set_defaults(func=cmd_bench)
+
+    p_export = sub.add_parser("export", help="콘솔이 읽을 JSON 생성")
+    p_export.add_argument("--out", default="api/static/gate.json")
+    p_export.add_argument("--candidate", default=CANDIDATE_VERSION)
+    p_export.add_argument("--baseline", default=LEDGER_VERSION)
+    p_export.set_defaults(func=cmd_export)
 
     p_demo = sub.add_parser("demo", help="오프라인 크래시·재개 시연")
     p_demo.set_defaults(func=cmd_demo)

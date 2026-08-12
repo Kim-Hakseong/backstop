@@ -6,8 +6,10 @@
 import base64
 import json
 import os
+import pathlib
 
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.staticfiles import StaticFiles
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 from pydantic import BaseModel
@@ -17,6 +19,8 @@ from subject_agent.agent import build_agent
 from subject_agent.workflow import STEPS, WorkflowRunner
 
 app = FastAPI(title="backstop-api")
+
+STATIC = pathlib.Path(__file__).parent / "static"
 
 APP_NAME = "backstop"
 _runner: InMemoryRunner | None = None
@@ -169,3 +173,9 @@ async def run(req: RunRequest) -> dict:
                 texts.append(part.text.strip())
 
     return {"tool_calls": tool_calls, "text": "\n".join(t for t in texts if t)}
+
+
+# 콘솔은 정적 파일 하나다. 마지막에 마운트해서 위의 API 경로를 가리지 않게 한다.
+# 화면은 gate.json 만 읽는다 — API 가 죽어도 뜬다(데모 무결성, PRD 2-3).
+if STATIC.is_dir():
+    app.mount("/", StaticFiles(directory=STATIC, html=True), name="console")

@@ -6,6 +6,7 @@
 **가용 시간 가정**: 하루 4~6시간 / 총 80~110시간
 
 **현재 Phase**: P5 (P0~P4 게이트 08-12 전부 통과. P4는 계획 대비 15일 선행)
+**저장소 상태 (08-13)**: `PRD.md` 추적 해제 + **git 히스토리에서 완전 제거**(filter-branch, blob 4개 purge 확인). 커밋 26개·태그 5개 보존. **아직 push 안 함 — 원격 없음.**
 **배포 URL**: https://backstop-api-5nohynuexa-uc.a.run.app (별칭 https://backstop-api-911984605187.us-central1.run.app 도 200)
 **현재 잔여 크레딧**: 미확인 — 08-12 Cloud Build 1회 + Cloud Run + Vertex 호출 3회로 실사용은 $1 미만 추정. **콘솔에서 눈으로 확인 필요**(CLAUDE.md §10)
 
@@ -336,7 +337,10 @@
 - 목표: @SUBMISSION.md 초안을 실측 수치로 갱신해 Devpost에 붙여넣기
 - 완료 조건: 플레이스홀더 0개
 - 예상: 2h / 실소요: 0.5h
-- [x] 08-12. **완료 조건 확인**: `grep '<TBD>\|<N>' README.md SUBMISSION.md` → 0건. 5섹션 전부 실측 수치로 채워짐. Challenges는 4개이고 전부 **실제로 겪은** 것이다(중복 유출 / 부작용 누락 / pending 크래시 창 / Narrator 환각 + 시뮬레이션 원장 + Memory Bank 미연동).
+- [x] 08-12. **완료 조건 확인**: `grep '<TBD>\|<N>' README.md SUBMISSION.md` → 0건.
+- ✅ **08-13 영문화 완료 (사용자 지시)**: `SUBMISSION.md`·`README.md`를 전문 영어로 번역했다. 심사진이 Google/Devpost라 한국어는 사실상 읽히지 않고, 이 write-up의 강점은 **관측된 실패 서사**인데 읽히지 않으면 강점이 아니다. 실측 수치는 한 자도 바꾸지 않았다(1,094 / 42 / 1.7ms / 0 / 3 / exit 1). 한글 토큰 0개 확인.
+- ⚠️ **남은 한국어 문서**: `LOG.md`·`CLAUDE.md`·`Design.md`·`PROMPT_ralph.md`는 한국어다. 공개는 하되 번역하지 않았다. LOG의 버그 이력이 배점 30%(Architectural Discipline)의 증거인데 심사진이 못 읽는다는 점은 트레이드오프로 남는다 — 필요하면 LOG만 영문 요약을 README에 붙이는 선택지가 있다. 5섹션 전부 실측 수치로 채워짐. Challenges는 4개이고 전부 **실제로 겪은** 것이다(중복 유출 / 부작용 누락 / pending 크래시 창 / Narrator 환각 + 시뮬레이션 원장 + Memory Bank 미연동).
+- ✅ **08-13 실행 완료**: `git filter-branch --index-filter 'git rm --cached --ignore-unmatch PRD.md' --prune-empty --tag-name-filter cat -- --all` → `refs/original` 삭제 → `reflog expire` → `git gc --prune=now`. **검증: `git log --all -- PRD.md` 0건, blob 4개(e0407d9/1128df4/bcad52d/367e6a0) 전부 `absent`.** 커밋 26개·태그 5개(p0~p4) 그대로. 빈 커밋이 되는 커밋은 없어서 메시지 손실 0.
 - ✅ **08-13 결정 (사용자)**: `PRD.md`는 **저장소에서 제외**한다. Section 1A(다른 참가자 아이디어 분석)와 Section 0(상금 카테고리 전략)이 공개 저장소에서는 경쟁자 분석·상금 최적화로 읽히고, 인덱싱되면 되돌릴 수 없다. `.gitignore`에 추가하고 추적 해제했다. 로컬 파일은 그대로 유지된다.
 - `LOG.md`·`CLAUDE.md`·`PROMPT_ralph.md`는 **공개한다.** LOG의 버그 이력이 심사 배점 30%(Architectural Discipline)의 직접 증거다.
 

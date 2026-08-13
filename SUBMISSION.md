@@ -5,134 +5,134 @@
 **Track**: The Fortified Enterprise Fleet
 **Built with**: Google ADK · Gemini 3.5 Flash (Vertex AI) · Cloud Run · Pub/Sub · Firestore · OpenTelemetry
 
-> 아래 수치는 전부 `make bench` 실측값이다 (2026-08-12).
+> Every number below is measured output from `make bench` (2026-08-12).
 
-### 제출 맥락
+### Submission context
 
-**트랙**: The Fortified Enterprise Fleet ($20,000 + $2,000 크레딧)
-**총 상금 규모**: $175,000 + Google Cloud 크레딧
+**Track**: The Fortified Enterprise Fleet ($20,000 + $2,000 credits)
+**Total prize pool**: $175,000 + Google Cloud credits
 
-트랙 외에 아래 두 카테고리에도 해당한다 — 별도 제출물이 필요한 항목은 아니고, 이 제출물의 성격상 자동으로 대상이 된다.
+Two further categories apply to this entry. Neither needs a separate submission — they follow from what this project is.
 
-| 카테고리 | 규모 | 해당 근거 |
+| Category | Size | Why it applies |
 |---|---|---|
-| **Individual / Hobbyist** | 2명 × $10,000 | solo 참가 |
-| **Best Architectural Design** | 2팀 × $5,000 | 판정 경로가 순수 함수(네트워크·모델 import 0, CI가 import 그래프를 검사), 관문 2개가 실행 시점/배포 시점으로 분리, 상태는 append-only 원장 하나에 수렴 |
+| **Individual / Hobbyist** | 2 × $10,000 | Solo entry |
+| **Best Architectural Design** | 2 × $5,000 | The decision path is a pure function (zero network or model imports, enforced by a CI import-graph check), the two gates are separated by when they run (execution time vs. deploy time), and all state converges on a single append-only ledger |
 
-Best Multimodal UX는 해당하지 않는다. 이 제품에는 채팅 UI도 멀티모달 입력도 없고, 그건 의도된 설계다.
+Best Multimodal UX does not apply. There is no chat UI and no multimodal input in this product, and that is deliberate.
 
 ---
 
 ## Inspiration
 
-**이걸 만드는 동안 우리 시스템에서 사고가 두 번 났다. 둘 다 배포본에서만 났고, 단위 테스트는 초록이었다.**
+**Two incidents happened in our own system while building this. Both appeared only in the deployed service; the unit tests were green through both of them.**
 
-**하나 — 같은 메일이 두 번 나갔다.** Pub/Sub이 tick 3건을 동시에 전달하자 두 워커가 같은 워크플로 스텝을 실행했고, 원장에 `mail.send#MSG-CA2473`이 2건 기록됐다. 멱등성 검사가 "조회 → 실행 → 기록" 순서였기 때문이다. 두 워커 모두 "기록 없음"을 보고 둘 다 지나갔다.
+**One — the same email went out twice.** Pub/Sub delivered three ticks concurrently, two workers ran the same workflow step, and the ledger recorded `mail.send#MSG-CA2473` twice. The idempotency check was ordered "look up, execute, record." Both workers looked, both saw no prior record, and both proceeded.
 
-**둘 — 스텝 하나가 조용히 사라졌다.** 크래시 재개 테스트에서 워크플로가 `cursor 12/12`로 **완료를 보고했는데 실제 부작용은 11건**이었다. 재전달이 선점 리스 안에 도착해 정상 재시도가 중복으로 오인됐고, 커서만 전진했다. 예외도 경고도 없었다. 시스템은 성공했다고 말했다.
+**Two — a step disappeared silently.** During a crash-resume test the workflow reported `cursor 12/12` — complete — **while only 11 side effects had actually occurred**. A redelivery arrived inside the claim lease, so a legitimate retry was misread as a duplicate and skipped, and the cursor advanced anyway. No exception, no warning. The system reported success.
 
-방향이 정반대인 두 사고다. 하나는 같은 일을 두 번 했고, 하나는 해야 할 일을 안 했다. **공통점은 둘 다 사람이 알아챌 방법이 없었다는 것이다.** 발주가 두 번 나갔는지 물어볼 곳이 없고, 워크플로가 "완료"라고 말하면 그걸 반증할 근거가 없다. 이 두 건은 우리가 6주짜리 워크플로를 하루 굴려서 나온 것이다. 실제로 몇 주씩 도는 에이전트라면 어떤 빈도로 날지 생각해 보면 된다.
+These two failures point in opposite directions. One did the same work twice; the other never did the work at all. **What they share is that no human could have noticed either one.** There is nowhere to ask whether a purchase order went out twice, and when a workflow says "done," nothing contradicts it. We produced both by running a six-week workflow for a single day. It is worth considering how often they occur in an agent that genuinely runs for weeks.
 
-Google이 이 해커톤 워크숍 제목에 직접 써놓은 질문이 정확히 이 자리에 있다 — **"재개된 에이전트가 왜 노트북을 두 대 주문하는가."** 백그라운드에서 몇 주간 도는 에이전트는 반드시 한 번은 죽고, 한 번은 재개되고, 한 번은 코드가 바뀐다. 그때 이미 나간 부작용이 다시 나가는지 판단하는 사람은 없다.
+Google put the same question in the title of this hackathon's own workshop — **"why does a resumed agent order two laptops?"** An agent running in the background for weeks will eventually crash, eventually resume, and eventually have its code changed. At that moment, nobody is deciding whether an already-emitted side effect is about to be emitted again.
 
-**Backstop이 없애는 마찰은 이것이다**: "이 버전을 올리면 지난 6주에 했던 일 중 무엇을 다시 하게 되는가"라는 질문에, 추측이 아니라 종료 코드로 답한다. 우리 시드 원장에서는 그 답이 **중복 발주 3건**이고, 게이트는 배포를 막는다.
+**This is the friction Backstop removes**: the question "if I ship this version, which of the last six weeks of work will it redo?" gets answered with an exit code instead of a guess. On our seed ledger the answer is **three duplicate purchase orders**, and the gate blocks the deploy.
 
-이 대회의 제출물 대부분은 에이전트가 무엇을 **해내는지**를 보여준다. 우리는 반대편을 골랐다. 에이전트가 지난 6주간 무엇을 했는지 원장에 남기고, 새 버전을 올리기 전에 그 6주를 되감아 재생해서 이번 버전이 과거에 무엇을 중복 실행했을지 계산한다. **클라이맥스는 "에이전트가 해냈다"가 아니라 "배포가 막혔다"이다.**
+Most submissions in this competition show what an agent **accomplishes**. We took the opposite side. We record what the agent did over the past six weeks, and before a new version ships we rewind those six weeks and compute what this version would have re-executed. **The climax is not "the agent did it" — it is "the deploy was blocked."**
 
 ## What it does
 
-Backstop은 세 부분이다.
+Backstop has three parts.
 
-**1. 원장(Ledger).** ADK의 `before_tool_callback` / `after_tool_callback`에서 모든 도구 호출을 가로챈다. 각 호출은 `(도구명, 정규화된 인자 해시, 실행 범위)`로 만든 멱등성 키와 함께 Firestore에 기록되고, OpenTelemetry 스팬 ID가 붙는다. 이게 실행 시점의 첫 번째 관문이다 — 같은 키의 부작용은 두 번 나가지 않는다.
+**1. The ledger.** ADK's `before_tool_callback` and `after_tool_callback` intercept every tool call. Each call is written to Firestore with an idempotency key built from `(tool name, canonicalised argument hash, run scope)`, alongside an OpenTelemetry span ID. This is the first gate, at execution time — a side effect with the same key does not go out twice.
 
-**2. 재생(Replay).** 원장의 이벤트를 순서대로 새 에이전트 버전에 다시 먹인다. 이때 도구 실행기는 no-op 수집기로 교체되어 있어 외부로 나가는 호출은 **0건**이다. 나가려 했던 의도만 모인다. 6주치 원장(이벤트 1,094건, 부작용 42건)을 로드해서 재생하고 판정까지 내는 데 **1.7ms** 걸린다.
+**2. Replay.** The ledger's events are fed back, in order, to the new agent version. The tool executor is swapped for a no-op collector, so calls leaving the process number **zero**. Only the intents are gathered. Loading six weeks of ledger (1,094 events, 42 side effects), replaying it, and reaching a verdict takes **1.7ms**.
 
-**3. 분기 게이트(Divergence Gate).** 과거에 실제로 나갔던 부작용 집합과 재생에서 수집된 의도 집합의 차집합을 낸다. 결과는 세 종류다 — `DUPLICATE`(이미 나간 걸 또 하려 함), `MISSING`(하던 걸 안 함), `MUTATED`(같은 대상에 다른 값). `DUPLICATE`가 하나라도 있으면 종료 코드 1을 반환하고 배포가 막힌다.
+**3. The divergence gate.** It takes the set difference between the side effects that actually went out and the intents collected during replay. There are three outcomes — `DUPLICATE` (about to redo something already done), `MISSING` (no longer does something it used to), `MUTATED` (same target, different value). A single `DUPLICATE` returns exit code 1 and the deploy is blocked.
 
-**Backstop에서 LLM은 아무것도 차단하지 않는다.** 게이트는 집합 연산이고 순수 함수이며 단위 테스트가 붙어 있다. `divergence.py`가 네트워크나 모델 라이브러리를 import하면 CI가 실패한다. Gemini 3.5 Flash는 분기 카드 하단의 설명 한 문장을 쓰는 데만 호출된다. **재생과 판정 경로의 모델 호출은 0회**이고, 분기 3건의 설명문을 만드는 데 3회 호출된다(상한 5회). 모델을 통째로 빼도 `DEPLOY BLOCKED` 와 종료 코드 1은 그대로다.
+**In Backstop, the LLM blocks nothing.** The gate is set arithmetic, a pure function, with unit tests attached. If `divergence.py` imports a network or model library, CI fails. Gemini 3.5 Flash is called only to write the one explanatory sentence at the bottom of a divergence card. **The replay and decision path make zero model calls**; generating the three explanations costs three calls (capped at five). Remove the model entirely and `DEPLOY BLOCKED` and exit code 1 are unchanged.
 
 ## How we built it
 
-subject-agent는 6주짜리 벤더 온보딩 워크플로를 도는 ADK 에이전트다. Pub/Sub `agent.tick` 메시지가 한 스텝씩 전진시키고, 상태는 Firestore에 남는다. 감사 대상일 뿐이라 도구는 5개를 넘지 않는다.
+The subject-agent is an ADK agent running a six-week vendor onboarding workflow. A Pub/Sub `agent.tick` message advances it one step, and state persists in Firestore. It is only the specimen under audit, so it never exceeds five tools.
 
-핵심은 재생 하네스가 실행 모드를 바꿔치기하는 방식이다. ADK의 도구 실행 경로에 `IntentCollector`를 주입하면 에이전트는 자기가 도구를 부른다고 믿지만 아무것도 나가지 않는다. 이걸 강제하기 위해 소켓을 몽키패치한 테스트를 두었다 — 재생 중 네트워크 호출이 한 건이라도 발생하면 빨간불이 된다.
+The core is how the replay harness swaps the execution mode. Inject `IntentCollector` into ADK's tool execution path and the agent believes it is calling tools while nothing leaves the process. To enforce that, a test monkey-patches sockets — a single network call during replay turns it red. Blocking sockets alone was not enough, so the test also asserts the stubs' side-effect lists stay empty, because our stubs need no network to cause an effect.
 
-시간은 전부 주입식이다. 코드 어디에도 `datetime.now()` 직접 호출이 없고 `clock.now()`를 통한다. 덕분에 6주치 원장을 실시간 대기 없이 생성할 수 있었고, 그 원장이 저장소에 커밋돼 있어서 누구나 API 키 없이 `make replay`만 치면 같은 분기 결과를 본다.
+Time is injected everywhere. No `datetime.now()` call exists anywhere in the code; everything goes through `clock.now()`, and an AST-based test enforces it across the repository. That is what let us generate six weeks of ledger with no real waiting, and because that ledger is committed, anyone can run `make replay` with no API key and see the same divergences.
 
 ## Challenges we ran into
 
-여섯 가지를 적는다. 앞의 둘은 고쳤지만 어떻게 고쳤는지가 이 제품의 내용이고, 나머지 넷은 아직 안 풀렸다.
+Six of them. The first two are fixed, and how they were fixed is most of what this product is. The remaining four are unsolved.
 
-**Inspiration의 두 사고를 고치는 데 설계가 두 번 바뀌었다.** 중복 유출은 관문 ①이 "조회 → 실행 → 기록"이었기 때문이다. 지금은 도구 실행 **전에** 키를 선점하고, Firestore 문서 ID를 멱등성 키로 써서 유일성을 애플리케이션 로직이 아니라 **저장소 제약**으로 강제한다. 그러자 반대 방향 버그가 났다 — 크래시 재전달이 선점 리스 안에 도착해 정상 재시도가 중복으로 오인됐고, 커서만 전진해 스텝이 사라졌다. 그래서 차단을 두 종류로 나눴다: **확정된 부작용에 막히면 "이미 끝난 일"이라 커서를 전진시키고, 리스 안의 선점에 막히면 "아직 안 끝난 일"이라 커서를 붙잡는다.** 게이트의 `DUPLICATE`와 `MISSING` 분류는 상상해서 만든 범주가 아니라 이 두 사고의 이름이다.
+**Fixing the two incidents above changed the design twice.** The duplicate leaked because gate ① was ordered "look up, execute, record." The key is now claimed **before** the tool runs, and the Firestore document ID *is* the idempotency key, so uniqueness is enforced by a **storage constraint** rather than by application logic. That introduced the opposite bug — a crash redelivery landing inside the claim lease was misread as a duplicate, and the cursor advanced past work that never happened. So blocking now means two different things: **blocked by a committed effect is work already done, so advance the cursor; blocked by an in-lease claim is work still unfinished, so hold it.** The gate's `DUPLICATE` and `MISSING` categories are not invented taxonomy — they are the names of these two incidents.
 
-**선점 후·확정 전 크래시는 구분이 안 된다.** 도구가 실행되기 직전에 죽은 것과, 실행된 직후 기록 전에 죽은 것을 원장만 보고 구별할 수 없다. 창은 수 밀리초지만 실재한다. 후자에서 재선점이 일어나면 부작용이 두 번 나간다. 지금은 리스(25초)로 시간을 벌 뿐이고, 진짜 해법은 도구 쪽의 조회 API나 2단계 커밋인데 스텁으로는 증명할 수 없어 넣지 않았다.
+**A crash after claiming but before committing is indistinguishable.** Dying just before the tool executes and dying just after it executes but before the record is written look identical in the ledger. The window is milliseconds, but it is real, and reclaiming in the second case sends the side effect twice. Today we only buy time with a 25-second lease. The real fix is a lookup API on the tool side or a two-phase commit, and we left it out because stubs cannot prove it works.
 
-**프롬프트가 바뀌면 멱등성 키가 흔들린다.** 인자 정규화 규칙이 바뀌면 같은 의미의 호출이 다른 키를 낳는다. 데모의 분기 3건이 정확히 이것이다 — v3가 `vendor_id`를 `"acme-corp"`에서 `"ACME Corp"`로 표기만 바꿨는데 게이트가 중복 발주로 판정한다. **이건 게이트의 오작동이 아니라 실제로 발주가 두 번 나가는 상황이 맞다.** 다만 "표기만 바꾼 무해한 변경"과 "진짜 다른 벤더"를 게이트가 구분하지 못한다는 한계는 그대로다. 정규화 규칙에 버전을 붙여(`CANON_VERSION`) 규칙 변경을 감지할 수 있게 해두었지만, 자동 판단은 아직 못 한다.
+**Changing a prompt shifts the idempotency key.** When argument canonicalisation changes, a semantically identical call produces a different key. The demo's three divergences are exactly this — v3 changed `vendor_id` from `"acme-corp"` to `"ACME Corp"`, purely cosmetically, and the gate calls it duplicate purchase orders. **That is not a gate malfunction: the order really would go out a second time.** The limitation is that the gate cannot separate "a harmless relabelling" from "genuinely a different vendor." We version the canonicalisation rules (`CANON_VERSION`) so a rule change is detectable, but the judgement is not automatic.
 
-**6주 원장은 시뮬레이션으로 생성됐다.** 실제 6주간 운영한 로그가 아니라 FrozenClock으로 압축 생성한 것이다. 이벤트 분포와 실패율은 우리가 정한 값이고, 실제 운영 트래픽의 지저분함을 담고 있지 않다.
+**The six-week ledger is generated by simulation.** It is not a real six-week operational log; it is compressed into existence with a FrozenClock. The event distribution and failure rates are values we chose, and it does not carry the messiness of real production traffic.
 
-**Memory Bank와 Agent Registry를 붙이지 못했다.** Fleet 트랙 권장 컴포넌트지만 학습 비용이 스프린트 안에 들어오지 않았다. 메모리는 동일 인터페이스의 Firestore 구현으로 대체했다.
+**We did not integrate Memory Bank or Agent Registry.** They are recommended Fleet-track components, but the learning cost did not fit the sprint. Memory is served by a Firestore implementation behind the same interface.
 
-**Narrator가 문장을 지어낸다.** Gemini가 쓴 분기 설명 3개 중 하나가 "이미 기존 인시던트에 기록된 사안"이라는, 존재하지 않는 사실을 만들어냈다. 그래서 화면에서 이 텍스트는 카드 최하단 보조 텍스트이고, `make gate`의 기본 경로는 결정론적인 사전 저장 문장을 쓴다. 판정은 어느 쪽이든 동일하다 — 이 부분이 제품에서 유일하게 "LLM 래퍼"인 영역이고, 그래서 판정 경로에서 격리해 두었다.
+**The Narrator fabricates.** One of the three divergence explanations written by Gemini asserted the matter "has already been logged in an existing incident" — a fact that does not exist. So on screen this text is the lowest, dimmest line of the card, and `make gate` defaults to deterministic pre-written sentences. The verdict is identical either way. This is the one place in the product that is genuinely an LLM wrapper, which is exactly why it is isolated from the decision path.
 
 ## What's next for Backstop
 
-Agent Registry에 등록된 조직 내 여러 에이전트의 원장을 한 게이트에서 관리하는 것. 지금은 에이전트 하나의 원장만 다룬다. 그리고 Model Armor가 차단한 이벤트를 원장에 합류시켜, "이 버전은 과거 프롬프트 인젝션 시도 12건 중 2건을 통과시켰을 것"까지 계산하는 것.
+Managing the ledgers of several agents registered in Agent Registry behind one gate; today it handles a single agent's ledger. And joining Model Armor's blocked events into the ledger, so the gate can also compute "this version would have let 2 of the 12 past prompt-injection attempts through."
 
 ---
 
-## 제출물 체크리스트
+## Submission checklist
 
-| 항목 | 상태 | 링크 |
+| Item | Status | Link |
 |---|---|---|
-| 데모 영상 (3분 이내, **완전 공개** YouTube/Vimeo) | ☐ | 미등록(unlisted) 금지 — Rules 원문이 "publicly visible" |
-| 코드 저장소 (공개) | ☐ | |
-| **아키텍처 다이어그램** (이미지, 필수) | ☑ | `docs/architecture.svg` (자체 완결 SVG, 폰트 임베드) · `docs/architecture.png` (3200×1800, 2x) |
-| Write-up 5섹션 | ☐ | |
-| 배포 URL (콘솔) | ☑ | https://backstop-api-5nohynuexa-uc.a.run.app/ |
-| 트랙 선택: Fortified Enterprise Fleet | ☐ | |
-| Built with 태그: ADK / Gemini / Cloud Run / Pub/Sub / Firestore | ☐ | |
+| Demo video (under 3 min, **fully public** YouTube/Vimeo) | ☐ | Unlisted is not acceptable — the Rules say "publicly visible" |
+| Code repository (public) | ☐ | |
+| **Architecture diagram** (image, required) | ☑ | `docs/architecture.svg` (self-contained, fonts embedded) · `docs/architecture.png` (3200×1800, 2x) |
+| Write-up, 5 sections | ☑ | This file |
+| Deployed URL (console) | ☑ | https://backstop-api-5nohynuexa-uc.a.run.app/ |
+| Track selected: Fortified Enterprise Fleet | ☐ | |
+| Built-with tags: ADK / Gemini / Cloud Run / Pub/Sub / Firestore | ☐ | |
 
 ---
 
-## 영상 촬영 큐시트 (3분, 컷 3개 이하)
+## Video shot list (3 minutes, 3 cuts maximum)
 
-| 시각 | 화면 | 대사 요지 | 준비물 |
+| Time | Screen | Narration | Preparation |
 |---|---|---|---|
-| 0:00–0:10 | 타임라인 풀스크린 (6주, 점 1,094개, 4주차 붉은 마커 3개) | "이 에이전트는 6주째 백그라운드로 돈다" | 콘솔 미리 로드, 브라우저 전체화면, 북마크바 숨김 |
-| 0:10–0:30 | 동일 화면 유지 | "지난주 코드를 고쳤다. 올려도 되는지 누가 판단하나" | 마우스 움직임 최소 |
-| 0:30–0:50 | 터미널 `make gate` 실행 | "6주치 이벤트를 새 버전에 다시 먹인다" | 폰트 크기 18pt 이상, 프롬프트 단축 |
-| 0:50–0:55 | v3 게이트 결과 — 즉시 완료. 수치 4개가 화면에 (1,094 events / 1.7ms / 0 external calls / 3 blocked) | "6주치가 1.7밀리초에 끝났다. 외부 호출은 0건" | **진행 바 없음.** 재생은 실제로 1.7ms라 즉시 끝난다. 느리게 연출하지 않는다 |
-| 0:55–1:05 | **같은 명령을 v1으로 다시 실행** → `DUPLICATE 0` / `DEPLOY ALLOWED` / exit 0 | "원장을 만든 버전 그대로 재생하면 0건이다. 이 게이트는 항상 빨간불이 아니다" | `--version v1`. 대조군이 이 구간의 핵심이다 |
-| 1:05–1:10 | 두 결과를 나란히 (좌 v3 BLOCKED / 우 v1 ALLOWED) | "차이는 버전 하나다" | 터미널 2분할 또는 정지 화면 합성 1컷 |
-| 1:10–1:30 | 붉은 마커 클릭 → 분기 카드 | "3건이 중복 발주였다" → `DEPLOY BLOCKED` | 카드 내용 사전 확인 |
-| 1:30–1:50 | 화면 분할: `divergence.py` 12줄 + `pytest -q` 통과 | "차단은 집합 연산이다. LLM이 아니다" | 코드 하이라이트, 테스트 출력 미리 준비 |
-| 1:50–1:55 | **Cloud Run 콘솔 → 라이브 `.run.app` 호출** (5초) | "이건 로컬이 아니다. Cloud Run에서 돈다" | 콘솔 서비스 목록(backstop-api, us-central1)에서 URL 클릭 → `/health` 200 응답이 브라우저에 뜨는 것까지 한 화면. 사전 로그인·탭 준비 |
-| 1:55–2:15 | 아키텍처 다이어그램 1컷 (20초) | 필수 기술 3종을 손가락으로 짚듯 언급 | 제출용과 동일 이미지 파일 |
-| 2:15–2:30 | `LLM calls during replay: 0` 카운터 확대 | "판정 경로에 모델 호출은 0회" | 숫자 실측값 확인 |
-| 2:30–2:50 | `POST /admin/kill` → 로그에 크래시 → 재개 | "크래시 후 재개에서도 부작용은 두 번 안 나간다" | 사전 3회 리허설. 실패 시 녹화본 재사용 |
-| 2:50–3:00 | 히어로 수치 4개 + Cloud Run URL 정지 화면 | 무음 또는 한 줄 | 자막 폰트 IBM Plex Mono |
+| 0:00–0:10 | Timeline full screen (6 weeks, 1,094 dots, 3 red markers at week 4) | "This agent has been running in the background for six weeks" | Console preloaded, browser fullscreen, bookmarks bar hidden |
+| 0:10–0:30 | Same screen held | "We changed the code last week. Who decides whether it can ship?" | Minimal mouse movement |
+| 0:30–0:50 | Terminal, run `make gate` | "We feed six weeks of events back into the new version" | Font 18pt or larger, shortened prompt |
+| 0:50–0:55 | v3 gate result — instant. Four numbers on screen (1,094 events / 1.7ms / 0 external calls / 3 blocked) | "Six weeks finished in 1.7 milliseconds. Zero external calls" | **No progress bar.** Replay really is 1.7ms, so it ends instantly. Do not stage it slower |
+| 0:55–1:05 | **Same command against v1** → `DUPLICATE 0` / `DEPLOY ALLOWED` / exit 0 | "Replay the version that wrote the ledger and you get zero. This gate is not always red" | `--version v1`. The control run is the point of this segment |
+| 1:05–1:10 | Both results side by side (left v3 BLOCKED / right v1 ALLOWED) | "One version is the only difference" | Split terminal, or one composed still |
+| 1:10–1:30 | Click a red marker → divergence card | "Three of them were duplicate purchase orders" → `DEPLOY BLOCKED` | Verify card contents beforehand |
+| 1:30–1:50 | Split screen: 12 lines of `divergence.py` + `pytest -q` passing | "The block is set arithmetic. It is not the LLM" | Code highlighted, test output prepared |
+| 1:50–1:55 | **Cloud Run console → live `.run.app` call** (5 seconds) | "This is not local. It runs on Cloud Run" | From the console service list (backstop-api, us-central1), click the URL through to a `/health` 200 in the browser, in one shot. Sign in and prepare tabs in advance |
+| 1:55–2:15 | Architecture diagram, one cut (20 seconds) | Point out the three required technologies | Same image file as the submission |
+| 2:15–2:30 | Zoom on `LLM calls during replay: 0` | "Zero model calls in the decision path" | Confirm the measured number |
+| 2:30–2:50 | `POST /admin/kill` → crash in the logs → resume | "Even after a crash and resume, the side effect does not go out twice" | Rehearse three times. If it fails, reuse the recorded take |
+| 2:50–3:00 | Four hero numbers + Cloud Run URL, held still | Silence, or one line | Subtitle font IBM Plex Mono |
 
-**0:50–1:10 이 왜 대조군인가**: 재생이 1.7ms라 "타임라인이 채워지는" 장면으로 20초를 쓸 수 없다(그렇게 하려면 애니메이션을 가짜로 늦춰야 하고, 그건 Design.md 모션 규칙 위반이다). 대신 **같은 명령을 v1으로 한 번 더 돌린다.** 심사위원이 배포 게이트 데모에서 가장 먼저 의심하는 건 "저거 그냥 항상 빨간불 아니냐"이고, 대조군 10초가 그 의심을 정확히 없앤다. 진행 바보다 강한 20초다.
+**Why 0:50–1:10 is a control run**: replay takes 1.7ms, so there is no honest way to spend 20 seconds on a "timeline filling up" shot — you would have to fake the animation, which violates the motion rules in Design.md. Instead we **run the same command again against v1**. The first thing a judge suspects of any deploy-gate demo is "isn't that just always red?", and ten seconds of control run answers exactly that. It is a stronger 20 seconds than a progress bar.
 
-**촬영 원칙**: 컷 3개 이하. 편집이 많으면 실제로 도는지 의심받는다. 화면 녹화는 1920×1080, 마이크는 후시녹음.
+**Filming principles**: three cuts maximum. Heavy editing invites doubt about whether it really runs. Screen capture at 1920×1080, microphone recorded separately afterwards.
 
-**1:50 컷이 왜 있나**: Overview 원문이 "approximately 4-minute demo video **proving backend runs on Google Cloud**"를 요구한다. 총 길이는 3분 구조를 유지하되(4분 이하라 위반 아님), "백엔드가 Google Cloud에서 돈다"는 증명은 말이 아니라 화면으로 한 번 박아야 한다. 5초를 아키텍처 다이어그램 구간(25→20초)에서 떼어냈다. **2:30–3:00 차단 클라이맥스는 손대지 않는다.**
-라이브 호출이 촬영 당일 실패할 경우: Cloud Run 콘솔의 요청 로그 화면으로 대체한다(배포 사실은 여전히 증명된다). 재촬영하지 않는다.
+**Why the 1:50 cut exists**: the Overview requires "approximately 4-minute demo video **proving backend runs on Google Cloud**." We keep the 3-minute structure (which is under 4 minutes, so compliant), but the proof that the backend runs on Google Cloud has to be shown once on screen rather than asserted. The five seconds came out of the architecture diagram segment (25→20 seconds). **The 2:30–3:00 blocking climax is untouched.**
+If the live call fails on the day: substitute the Cloud Run console request-log screen, which still proves the deployment. Do not reshoot.
 
 ---
 
-## Final 2-hour Pre-submit Checklist (08-31 19:00~21:00 KST)
+## Final 2-hour pre-submit checklist (08-31 19:00–21:00 KST)
 
-1. 시크릿 창에서 링크 4개 전부 열기 — 영상 / 저장소 / 콘솔 URL / 다이어그램
-2. 저장소 clone → `make setup && make replay` (API 키 없는 환경에서)
-3. `make bench` 실행 → 출력 숫자를 README·writeup·영상 자막과 대조
-4. README 최상단 3줄로 재현 가능한지 타인 관점 재확인
-5. "이 원장은 시뮬레이션 생성" 고지가 README와 writeup 양쪽에 있는지
-6. 아키텍처 다이어그램에 Gemini 3.5 Flash / Google ADK / Cloud Run·Pub/Sub·Firestore 라벨 확인
-7. Devpost 폼: 트랙 = Fortified Enterprise Fleet
-8. Devpost 폼: Built with 태그 입력
-9. 영상 길이 4분 이내 확인(우리 구성 3분) + **완전 공개** 설정 확인. Rules 원문은 "uploaded to and made publicly visible on YouTube or Vimeo" — 미등록은 쓰지 않는다
-10. ~~Rules 탭 IP·오픈소스 조항 확인~~ — 08-12 완료. 참가자가 IP 보유, Google에 평가·홍보용 비독점 라이선스 부여. 오픈소스 사용 허용(라이선스 준수 조건) → 폰트 OFL 고지 완료
-11. 제출 → **"Submitted" 상태를 눈으로 확인**
-12. 제출 후 다른 기기에서 제출 페이지 열어 첨부물 4종 렌더링 확인
+1. Open all four links in a private window — video / repository / console URL / diagram
+2. Clone the repository → `make setup && make replay` in an environment with no API key
+3. Run `make bench` → reconcile its numbers against the README, the write-up, and the video subtitles
+4. Re-check from a stranger's perspective that the top three README lines are enough to reproduce
+5. Confirm the "this ledger is generated by simulation" notice appears in both the README and the write-up
+6. Confirm the architecture diagram carries the Gemini 3.5 Flash / Google ADK / Cloud Run · Pub/Sub · Firestore labels
+7. Devpost form: track = Fortified Enterprise Fleet
+8. Devpost form: enter the built-with tags
+9. Confirm video length is under 4 minutes (ours is 3) and the visibility is **fully public**. The Rules say "uploaded to and made publicly visible on YouTube or Vimeo" — do not use unlisted
+10. ~~Check the Rules tab for IP and open-source terms~~ — done 2026-08-12. Entrants retain IP; Google receives a non-exclusive evaluation and promotion licence. Open source is permitted subject to its own licences → font OFL notice in place
+11. Submit → **confirm the "Submitted" status with your own eyes**
+12. After submitting, open the submission page on another device and confirm all four attachments render

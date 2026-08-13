@@ -7,3 +7,6 @@ __pycache__/
 node_modules/
 .next/
 uv.lock.bak
+
+# 전략 문서는 공개 저장소에 넣지 않는다 (경쟁자 분석·상금 전략 포함)
+PRD.md

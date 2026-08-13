@@ -6,7 +6,8 @@
 **가용 시간 가정**: 하루 4~6시간 / 총 80~110시간
 
 **현재 Phase**: P5 (P0~P4 게이트 08-12 전부 통과. P4는 계획 대비 15일 선행)
-**저장소 상태 (08-13)**: `PRD.md` 추적 해제 + **git 히스토리에서 완전 제거**(filter-branch, blob 4개 purge 확인). 커밋 26개·태그 5개 보존. **아직 push 안 함 — 원격 없음.**
+**공개 저장소**: https://github.com/Kim-Hakseong/backstop (Apache-2.0, main, 태그 5개)
+**저장소 상태 (08-13)**: `PRD.md` 추적 해제 + **git 히스토리에서 완전 제거**(filter-branch, blob 4개 purge 확인). **push 후 원격 클론으로 재검증: 커밋·트리 양쪽에서 0건, API도 Not Found.**
 **배포 URL**: https://backstop-api-5nohynuexa-uc.a.run.app (별칭 https://backstop-api-911984605187.us-central1.run.app 도 200)
 **현재 잔여 크레딧**: 미확인 — 08-12 Cloud Build 1회 + Cloud Run + Vertex 호출 3회로 실사용은 $1 미만 추정. **콘솔에서 눈으로 확인 필요**(CLAUDE.md §10)
 

@@ -86,7 +86,7 @@ Managing the ledgers of several agents registered in Agent Registry behind one g
 | Item | Status | Link |
 |---|---|---|
 | Demo video (under 3 min, **fully public** YouTube/Vimeo) | ☐ | Unlisted is not acceptable — the Rules say "publicly visible" |
-| Code repository (public) | ☐ | |
+| Code repository (public) | ☑ | https://github.com/Kim-Hakseong/backstop |
 | **Architecture diagram** (image, required) | ☑ | `docs/architecture.svg` (self-contained, fonts embedded) · `docs/architecture.png` (3200×1800, 2x) |
 | Write-up, 5 sections | ☑ | This file |
 | Deployed URL (console) | ☑ | https://backstop-api-5nohynuexa-uc.a.run.app/ |

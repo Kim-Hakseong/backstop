@@ -173,6 +173,70 @@ divergences: the deploy passes.
 
 ---
 
+## Engineering log highlights
+
+[`LOG.md`](LOG.md) is the working sprint log, kept in Korean as it was written — it is the
+original record rather than a cleaned-up retelling. The entries below are the ones worth
+finding, with what they say. Most of them are bugs that unit tests could not see.
+
+**1. ADK calls `after_tool_callback` even when `before_tool_callback` skips the tool**
+— *LOG T1.5, trap 3.* Gate ① blocks a duplicate by returning a dict from `before_tool`,
+which makes ADK skip execution. But `functions.py` Step 5 runs the after-callback anyway,
+regardless of that short circuit. Since the after-callback is what records side effects,
+the naive version logged the very duplicate gate ① had just blocked — the ledger would
+have shown two effects for one real action, corrupting the history gate ② later compares
+against. Fixed by marking skipped slots; pinned by
+`test_after_callback_does_not_record_effect_for_blocked_call`.
+
+**2. A duplicate side effect actually escaped gate ①** — *LOG P2 gate summary + Decision
+Log, 2026-08-12.* Three concurrent Pub/Sub deliveries ran the same step in two workers and
+the ledger recorded `mail.send#MSG-CA2473` twice. The guard was check-then-act — look up,
+execute, record — so both workers saw "no prior effect" and both proceeded. This is the
+exact failure the product exists to prevent, occurring inside the product. The key is now
+claimed *before* execution, with the idempotency key as the Firestore document ID so
+uniqueness is a storage constraint. Reproduced by `tests/test_concurrent_guard.py`.
+
+**3. A step vanished while the workflow reported success** — *LOG T2.4 + Decision Log.*
+A crash-resume run finished at `cursor 12/12` with only 11 committed effects. Pub/Sub
+redelivered inside the 25-second claim lease, so a legitimate retry was misclassified as a
+concurrent duplicate and skipped — and the cursor advanced regardless. The fix distinguishes
+two kinds of blocking: a committed effect means work already done (advance), an in-lease
+claim means work unfinished (hold). This is why the gate has both `DUPLICATE` and `MISSING`.
+
+**4. Gemini 3.x is not served from regional endpoints — a silent eligibility failure**
+— *LOG Decision Log, `GOOGLE_CLOUD_LOCATION=global`.* `gemini-3.5-flash` returns
+`404 NOT_FOUND` from `us-central1`, `us-east5` and `europe-west4`; only the non-regional
+`global` endpoint serves it, and the regions carry the 2.5 family. The dangerous part is the
+obvious fix: when your model 404s, dropping to `gemini-2.5-flash` works instantly and
+silently violates the "Gemini 3.5 or newer" requirement. Location is pinned to `global` and
+split from the Cloud Run region in `deploy.sh`, because holding both in one variable is how
+a working local setup deploys into a 404.
+
+**5. The model sent `4200` where the test sent `4200.0`** — *LOG T1.4.* Live Gemini emitted
+the integer, the local test the float, and they hashed to different idempotency keys
+(PO-8428 vs PO-9084). An LLM varies JSON numeric types across calls for semantically
+identical arguments, so numeric-type unification has to come *before* the argument-order and
+whitespace rules. Left unhandled, gate ① passes the duplicate through and gate ② reports a
+false-positive `DUPLICATE`.
+
+**6. OpenTelemetry spans with all-zero IDs** — *LOG T1.7, trap 4.* Without a configured
+`TracerProvider`, OTel returns non-recording spans whose trace and span IDs are entirely
+zero. Events then carry `trace_id` and `span_id` fields that look populated and resolve to
+nothing — a failure that passes every "is the field present?" check. `_ensure_provider()`
+installs the SDK provider and `test_span_ids_are_real_not_zeros` rejects zeros. No exporter
+is attached: what we need is real IDs, not egress.
+
+**7. An 11.4-second estimate measured at 1.7 milliseconds** — *LOG T3.9.* The pre-measurement
+plan assumed replay would take about 11 seconds, and the demo allocated 20 seconds to a
+timeline filling up. Replay does not re-execute 1,094 events; it pushes the 42 recorded steps
+through the new version, and 92% of ledger events are idle ticks with no side-effect intent.
+Two of our own measurements were also overstating things and were corrected: "events
+replayed" counted events *read*, and the timer excluded loading the ledger file. The demo
+lost its progress bar and gained a control run against v1 instead — see
+[SUBMISSION.md](SUBMISSION.md).
+
+---
+
 ## Verifying the invariants yourself
 
 ```bash
@@ -187,3 +251,16 @@ Three of them are the ones that matter:
   stubs' side-effect lists stay empty, because our stubs need no network to cause an effect.
 - `tests/test_concurrent_guard.py` — reproduces the duplicate that actually escaped in
   production: ten workers racing on one step must produce exactly one side effect.
+
+---
+
+## License
+
+Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+
+Apache-2.0 rather than MIT for two reasons: Google ADK, which this builds on, is
+Apache-2.0, and Backstop's contribution is a *method* (claim-before-execute plus replay
+divergence), so the explicit patent grant matters to the enterprise adopters this targets.
+
+Bundled fonts (Inter, IBM Plex Mono) are SIL OFL 1.1 — see
+[`api/static/fonts/LICENSE.md`](api/static/fonts/LICENSE.md).

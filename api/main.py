@@ -1,6 +1,6 @@
 """backstop-api. P0에서는 /health와 /run 두 개만 둔다.
 
-/replay, /gate, /timeline, /admin/kill은 P2~P3에서 붙는다(CLAUDE.md §5).
+/replay, /gate, /timeline, /admin/kill은 P2~P3에서 붙는다(docs/engineering-rules.md §5).
 """
 
 import base64

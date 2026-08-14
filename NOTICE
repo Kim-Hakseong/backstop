@@ -1,10 +1,8 @@
 Backstop
-Copyright 2026 Haku
+Copyright (c) 2026 K_Haku — MIT License (see LICENSE)
 
-Licensed under the Apache License, Version 2.0 (see LICENSE).
-
-This product bundles the following fonts, each licensed under the
-SIL Open Font License 1.1 (see api/static/fonts/LICENSE.md):
+Bundled fonts, each under the SIL Open Font License 1.1
+(see api/static/fonts/LICENSE.md):
 
   - Inter — Copyright (c) 2016 The Inter Project Authors (https://rsms.me/inter/)
   - IBM Plex Mono — Copyright (c) 2017 IBM Corp. (https://github.com/IBM/plex)

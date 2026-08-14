@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # T0.4 — backstop-api를 Cloud Run에 배포한다.
 #   ./scripts/deploy.sh
-# 필요한 것: gcloud 인증 + PROJECT_ID. min-instances=0 (유휴 시 과금 0, CLAUDE.md §10).
+# 필요한 것: gcloud 인증 + PROJECT_ID. min-instances=0 (유휴 시 과금 0, docs/engineering-rules.md §9).
 set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null)}"

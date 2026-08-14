@@ -256,11 +256,7 @@ Three of them are the ones that matter:
 
 ## License
 
-Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
-
-Apache-2.0 rather than MIT for two reasons: Google ADK, which this builds on, is
-Apache-2.0, and Backstop's contribution is a *method* (claim-before-execute plus replay
-divergence), so the explicit patent grant matters to the enterprise adopters this targets.
+MIT — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 Bundled fonts (Inter, IBM Plex Mono) are SIL OFL 1.1 — see
 [`api/static/fonts/LICENSE.md`](api/static/fonts/LICENSE.md).

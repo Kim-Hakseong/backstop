@@ -9,7 +9,7 @@
 **공개 저장소**: https://github.com/Kim-Hakseong/backstop (Apache-2.0, main, 태그 5개)
 **저장소 상태 (08-13)**: `PRD.md` 추적 해제 + **git 히스토리에서 완전 제거**(filter-branch, blob 4개 purge 확인). **push 후 원격 클론으로 재검증: 커밋·트리 양쪽에서 0건, API도 Not Found.**
 **배포 URL**: https://backstop-api-5nohynuexa-uc.a.run.app (별칭 https://backstop-api-911984605187.us-central1.run.app 도 200)
-**현재 잔여 크레딧**: 미확인 — 08-12 Cloud Build 1회 + Cloud Run + Vertex 호출 3회로 실사용은 $1 미만 추정. **콘솔에서 눈으로 확인 필요**(CLAUDE.md §10)
+**현재 잔여 크레딧**: 미확인 — 08-12 Cloud Build 1회 + Cloud Run + Vertex 호출 3회로 실사용은 $1 미만 추정. **콘솔에서 눈으로 확인 필요**(docs/engineering-rules.md §9)
 
 ---
 
@@ -157,7 +157,7 @@
 - [x] 08-12. `subject_agent/workflow.py` — 6주 12스텝 벤더 온보딩(주당 2스텝, 4주차에 `erp.create_po`, 5주차에 `payment.schedule_payment`). 커서는 `runs/{run_id}.cursor`.
 - **완료 조건 확인**: `test_state_survives_a_new_runner_instance` — 새 `WorkflowRunner` 인스턴스(=새 프로세스)가 커서 2에서 이어받아 3으로 간다. 배포본에서도 tick 3회 → `cursor=3, events=6, effects=3`.
 - **커서는 부작용 뒤에 전진한다.** 반대로 하면 크래시가 스텝을 건너뛴다.
-- 스텝은 결정론적으로 실행되고 ADK와 **같은 `LedgerCallbacks`**를 통과한다. 스텝마다 LLM을 부르면 원장 1,000건에 비용·시간이 폭발한다(CLAUDE.md §10). 관문 ①과 원장 기록은 LLM 경로와 동일하다.
+- 스텝은 결정론적으로 실행되고 ADK와 **같은 `LedgerCallbacks`**를 통과한다. 스텝마다 LLM을 부르면 원장 1,000건에 비용·시간이 폭발한다(docs/engineering-rules.md §9). 관문 ①과 원장 기록은 LLM 경로와 동일하다.
 - 도구 3종(`erp.create_po`/`mail.send`/`payment.schedule_payment`). 5개 상한 안이다.
 
 ### T2.3 크래시 주입 경로
@@ -340,10 +340,14 @@
 - 예상: 2h / 실소요: 0.5h
 - [x] 08-12. **완료 조건 확인**: `grep '<TBD>\|<N>' README.md SUBMISSION.md` → 0건.
 - ✅ **08-13 영문화 완료 (사용자 지시)**: `SUBMISSION.md`·`README.md`를 전문 영어로 번역했다. 심사진이 Google/Devpost라 한국어는 사실상 읽히지 않고, 이 write-up의 강점은 **관측된 실패 서사**인데 읽히지 않으면 강점이 아니다. 실측 수치는 한 자도 바꾸지 않았다(1,094 / 42 / 1.7ms / 0 / 3 / exit 1). 한글 토큰 0개 확인.
-- ⚠️ **남은 한국어 문서**: `LOG.md`·`CLAUDE.md`·`Design.md`·`PROMPT_ralph.md`는 한국어다. 공개는 하되 번역하지 않았다. LOG의 버그 이력이 배점 30%(Architectural Discipline)의 증거인데 심사진이 못 읽는다는 점은 트레이드오프로 남는다 — 필요하면 LOG만 영문 요약을 README에 붙이는 선택지가 있다. 5섹션 전부 실측 수치로 채워짐. Challenges는 4개이고 전부 **실제로 겪은** 것이다(중복 유출 / 부작용 누락 / pending 크래시 창 / Narrator 환각 + 시뮬레이션 원장 + Memory Bank 미연동).
+- ⚠️ **남은 한국어 문서**: `LOG.md`·`Design.md`·`docs/engineering-rules.md`는 한국어다. 공개는 하되 번역하지 않았다. LOG의 버그 이력이 배점 30%(Architectural Discipline)의 증거인데 심사진이 못 읽는다는 점은 트레이드오프로 남는다 — 필요하면 LOG만 영문 요약을 README에 붙이는 선택지가 있다. 5섹션 전부 실측 수치로 채워짐. Challenges는 4개이고 전부 **실제로 겪은** 것이다(중복 유출 / 부작용 누락 / pending 크래시 창 / Narrator 환각 + 시뮬레이션 원장 + Memory Bank 미연동).
 - ✅ **08-13 실행 완료**: `git filter-branch --index-filter 'git rm --cached --ignore-unmatch PRD.md' --prune-empty --tag-name-filter cat -- --all` → `refs/original` 삭제 → `reflog expire` → `git gc --prune=now`. **검증: `git log --all -- PRD.md` 0건, blob 4개(e0407d9/1128df4/bcad52d/367e6a0) 전부 `absent`.** 커밋 26개·태그 5개(p0~p4) 그대로. 빈 커밋이 되는 커밋은 없어서 메시지 손실 0.
 - ✅ **08-13 결정 (사용자)**: `PRD.md`는 **저장소에서 제외**한다. Section 1A(다른 참가자 아이디어 분석)와 Section 0(상금 카테고리 전략)이 공개 저장소에서는 경쟁자 분석·상금 최적화로 읽히고, 인덱싱되면 되돌릴 수 없다. `.gitignore`에 추가하고 추적 해제했다. 로컬 파일은 그대로 유지된다.
-- `LOG.md`·`CLAUDE.md`·`PROMPT_ralph.md`는 **공개한다.** LOG의 버그 이력이 심사 배점 30%(Architectural Discipline)의 직접 증거다.
+- `LOG.md`는 **공개한다.** 버그 이력이 심사 배점 30%(Architectural Discipline)의 직접 증거다.
+- ✅ **08-14 결정 변경 (사용자)**: `CLAUDE.md`와 `PROMPT_ralph.md`도 **공개하지 않는다.** 08-13에는 공개하기로 했으나 뒤집었다. 이유는 내용의 가치가 아니라 **형식**이다 — 두 파일은 AI 어시스턴트에게 주는 실행 지시문 형태라서, 저장소에 그대로 두면 심사진에게 "이 제출물이 어떻게 만들어졌나"라는 질문을 먼저 던지게 만든다. 판단 근거는 제품이어야 한다.
+  - **내용은 버리지 않았다.** `CLAUDE.md`의 실질(심사 기준→코드 규칙 R1~R8, 만들지 않은 것 목록, 검증 명령, 커밋 규칙)은 [docs/engineering-rules.md](docs/engineering-rules.md)로 옮겼고, 각 규칙에 그것을 강제하는 테스트 파일명을 붙였다. 어시스턴트 지시로 읽히는 부분만 걷어냈다.
+  - `PROMPT_ralph.md`는 작업 루프 지시문 자체라 옮길 실질이 없어 삭제했다. 심사 기준 중 어느 것도 이 파일에 의존하지 않는다.
+  - 두 파일 모두 `PRD.md`와 같은 방식으로 git 히스토리에서 제거했다.
 
 ### T5.4 영상 녹화
 - 목표: 3분 이내, 컷 3개 이하. 큐시트는 @SUBMISSION.md의 촬영 큐시트를 따른다(PRD는 비공개라 참조하지 않는다)

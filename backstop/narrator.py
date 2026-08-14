@@ -16,7 +16,7 @@ import os
 
 from backstop.divergence import DUPLICATE, MISSING, MUTATED, Divergence
 
-# 재생 1회당 모델 호출 상한(CLAUDE.md §10). 원장이 커져도 비용이 선형으로 늘지 않는다.
+# 재생 1회당 모델 호출 상한(docs/engineering-rules.md §9). 원장이 커져도 비용이 선형으로 늘지 않는다.
 MAX_NARRATOR_CALLS = 5
 
 MODEL = os.environ.get("BACKSTOP_MODEL", "gemini-3.5-flash")

@@ -2,7 +2,7 @@
 
 `before_tool_callback` 과 `after_tool_callback` 이 원장이 만들어지는 유일한 지점이다.
 에이전트 코드는 자기가 기록되고 있다는 걸 모른다 — 제약은 프롬프트가 아니라 실행
-계층에 있다(CLAUDE.md §4).
+계층에 있다(docs/engineering-rules.md §4).
 
 T1.5 에서 이 `before_tool` 자리에 IdempotencyGuard 가 들어간다. ADK 는
 before_tool_callback 이 dict 를 반환하면 도구 실행을 건너뛰고 그 dict 를 결과로

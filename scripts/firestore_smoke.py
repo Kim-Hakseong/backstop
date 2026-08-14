@@ -2,7 +2,7 @@
 
     PROJECT_ID=<id> uv run python scripts/firestore_smoke.py
 
-여기서 쓰는 필드는 CLAUDE.md §8의 `events` 스키마 부분집합이다. 정식 쓰기 경로는
+여기서 쓰는 필드는 docs/engineering-rules.md §7의 `events` 스키마 부분집합이다. 정식 쓰기 경로는
 P1의 backstop/ledger.py가 맡는다 — 이 스크립트는 연결과 권한만 증명한다.
 시간은 서버 타임스탬프로 남긴다. datetime.now()를 부르지 않는다(R3).
 """

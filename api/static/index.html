@@ -127,12 +127,13 @@
 
   <div class="cta">
     <div class="label">Reproduce this</div>
-    <pre><span class="dollar">$</span> git clone &lt;repo&gt; &amp;&amp; cd backstop
+    <pre><span class="dollar">$</span> git clone https://github.com/Kim-Hakseong/backstop &amp;&amp; cd backstop
 <span class="dollar">$</span> make setup
 <span class="dollar">$</span> make gate          <span class="cmt"># no API key required</span></pre>
     <div class="note">ledger: fixtures/ledger_6w.jsonl · 6 weeks, simulated run (not a real production log)</div>
     <div class="foot">the gate command exits 1 when blocked, 0 when allowed. <code>make gate</code> reports 2 because GNU make always exits 2 on a failed recipe.</div>
     <div class="links">
+      <a href="https://github.com/Kim-Hakseong/backstop">Source</a>
       <a href="/health">API health</a>
       <a href="/gate.json">raw gate output</a>
       <a href="/docs">API docs</a>

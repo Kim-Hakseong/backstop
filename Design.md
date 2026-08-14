@@ -161,7 +161,7 @@ Hero 최하단에 붙는 밴드. 별도 페이지가 아니다.
 ┌──────────────────────────────────────────────────────────────────────┐
 │  REPRODUCE THIS                                                      │
 │                                                                      │
-│    $ git clone github.com/<user>/backstop                            │
+│    $ git clone github.com/Kim-Hakseong/backstop                      │
 │    $ make setup                                                      │
 │    $ make replay          # no API key required                      │
 │                                                                      │

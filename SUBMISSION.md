@@ -97,13 +97,17 @@ Managing the ledgers of several agents registered in Agent Registry behind one g
 
 ## Video shot list (3 minutes, 3 cuts maximum)
 
+**Theme: light.** Every browser shot uses `?theme=light` appended explicitly, so a stale
+`localStorage` choice on the filming machine cannot flip the theme mid-take. The console
+defaults to light anyway; the query parameter is belt and braces.
+
 | Time | Screen | Narration | Preparation |
 |---|---|---|---|
-| 0:00–0:10 | Timeline full screen (6 weeks, 1,094 dots, 3 red markers at week 4) | "This agent has been running in the background for six weeks" | Console preloaded, browser fullscreen, bookmarks bar hidden |
+| 0:00–0:10 | Timeline full screen, light theme (6 weeks, 1,094 dots, 3 scarlet markers at week 4) | "This agent has been running in the background for six weeks" | Open `…run.app/?theme=light#v3`, browser fullscreen, bookmarks bar hidden |
 | 0:10–0:30 | Same screen held | "We changed the code last week. Who decides whether it can ship?" | Minimal mouse movement |
 | 0:30–0:50 | Terminal, run `make gate` | "We feed six weeks of events back into the new version" | Font 18pt or larger, shortened prompt |
 | 0:50–0:55 | v3 gate result — instant. Four numbers on screen (1,094 events / 1.7ms / 0 external calls / 3 blocked) | "Six weeks finished in 1.7 milliseconds. Zero external calls" | **No progress bar.** Replay really is 1.7ms, so it ends instantly. Do not stage it slower |
-| 0:55–1:05 | **Same command against v1** → `DUPLICATE 0` / `DEPLOY ALLOWED` / exit 0 | "Replay the version that wrote the ledger and you get zero. This gate is not always red" | `--version v1`. The control run is the point of this segment |
+| 0:55–1:05 | **Same command against v1** → `DUPLICATE 0` / `DEPLOY ALLOWED` / exit 0 | "Replay the version that wrote the ledger and you get zero. This gate is not always red" | `--version v1`, and `…run.app/?theme=light#v1` in the browser — the banner turns green with a 0 |
 | 1:05–1:10 | Both results side by side (left v3 BLOCKED / right v1 ALLOWED) | "One version is the only difference" | Split terminal, or one composed still |
 | 1:10–1:30 | Click a red marker → divergence card | "Three of them were duplicate purchase orders" → `DEPLOY BLOCKED` | Verify card contents beforehand |
 | 1:30–1:50 | Split screen: 12 lines of `divergence.py` + `pytest -q` passing | "The block is set arithmetic. It is not the LLM" | Code highlighted, test output prepared |
@@ -111,7 +115,7 @@ Managing the ledgers of several agents registered in Agent Registry behind one g
 | 1:55–2:15 | Architecture diagram, one cut (20 seconds) | Point out the three required technologies | Same image file as the submission |
 | 2:15–2:30 | Zoom on `LLM calls during replay: 0` | "Zero model calls in the decision path" | Confirm the measured number |
 | 2:30–2:50 | `POST /admin/kill` → crash in the logs → resume | "Even after a crash and resume, the side effect does not go out twice" | Rehearse three times. If it fails, reuse the recorded take |
-| 2:50–3:00 | Four hero numbers + Cloud Run URL, held still | Silence, or one line | Subtitle font IBM Plex Mono |
+| 2:50–3:00 | Four hero numbers + Cloud Run URL, held still (light) | Silence, or one line | Subtitle font IBM Plex Mono, dark text on the pastel wash |
 
 **Why 0:50–1:10 is a control run**: replay takes 1.7ms, so there is no honest way to spend 20 seconds on a "timeline filling up" shot — you would have to fake the animation, which violates the motion rules in Design.md. Instead we **run the same command again against v1**. The first thing a judge suspects of any deploy-gate demo is "isn't that just always red?", and ten seconds of control run answers exactly that. It is a stronger 20 seconds than a progress bar.
 

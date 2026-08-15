@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,9 +11,9 @@
     var q = new URLSearchParams(location.search).get('theme');
     var t = (q === 'light' || q === 'dark') ? q : null;
     if(!t){ try { t = localStorage.getItem('backstop-theme'); } catch(e) {} }
-    // 기본은 다크다. 이 제품의 얼굴이 어두운 계기판이고, 심사위원 기기의
-    // 시스템 설정에 따라 첫 화면이 달라지면 영상과 실물이 어긋난다.
-    document.documentElement.setAttribute('data-theme', t || 'dark');
+    // 기본은 라이트. 시스템 설정(prefers-color-scheme)은 **의도적으로 보지 않는다** —
+    // 보는 사람 기기 설정에 따라 첫 화면이 달라지면 영상·썸네일과 실물이 어긋난다.
+    document.documentElement.setAttribute('data-theme', t || 'light');
   })();
 </script>
 <link rel="stylesheet" href="theme.css">

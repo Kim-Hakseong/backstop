@@ -1,0 +1,46 @@
+/* Backstop 테마 토큰.
+   다크 = sunset(scarlet → orange, 하늘 blue), 라이트 = pastel.
+   의미는 두 테마에서 동일하다: 따뜻한 색 = 차단, 차가운 색 = 통과.
+   색이 바뀌어도 "빨간불이 나쁜 것"이라는 규칙은 그대로여야 한다. */
+
+:root, :root[data-theme="dark"]{
+  --bg:#0B0A0F; --surface:#15131B; --surface-2:#1D1A24;
+  --border:#2A2533; --border-strong:#3B3548;
+  --fg:#F6F0EA; --fg-muted:#9C90A2; --fg-dim:#6C6376;
+  --inert:#4E4660;
+
+  /* 차단: 진홍 → 주황 */
+  --block:#FF4D2E;   --block-2:#FFA033;
+  /* 통과: 일몰 상단의 하늘색 */
+  --pass:#4FA8FF;    --pass-2:#7FD4FF;
+  --warn:#FFB020;    --warn-2:#FFD36B;
+  --info:#5B8DEF;    --info-2:#8FB8FF;
+
+  --sky: radial-gradient(120% 100% at 50% 0%,
+          rgba(91,141,239,0.20) 0%,
+          rgba(255,122,24,0.13) 42%,
+          rgba(255,45,31,0.09) 62%,
+          transparent 78%);
+  --shadow: 0 1px 0 rgba(255,255,255,0.05) inset;
+  --keys-bg: var(--surface-2);
+}
+
+:root[data-theme="light"]{
+  --bg:#F3F3F5; --surface:#FFFFFF; --surface-2:#F6F6F8;
+  --border:#E6E6EA; --border-strong:#D3D3DA;
+  --fg:#15151A; --fg-muted:#6E6E78; --fg-dim:#9A9AA5;
+  --inert:#C7C7D0;
+
+  --block:#EE4B2B;   --block-2:#FBB27E;
+  --pass:#2FA46A;    --pass-2:#8BD48E;
+  --warn:#E39A12;    --warn-2:#F5C851;
+  --info:#5B4FE0;    --info-2:#7EC8E3;
+
+  --sky: radial-gradient(120% 100% at 50% 0%,
+          rgba(247,168,196,0.42) 0%,
+          rgba(245,200,81,0.30) 38%,
+          rgba(126,200,227,0.22) 62%,
+          transparent 80%);
+  --shadow: 0 1px 2px rgba(16,16,24,0.06), 0 8px 24px rgba(16,16,24,0.05);
+  --keys-bg:#FBFBFC;
+}

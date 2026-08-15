@@ -56,42 +56,69 @@
     min-height:18px}
   .marker-note.clear{color:var(--fg-muted)}
 
-  .banner{margin:24px 0;padding:16px;border-left:4px solid var(--block);
-    background:rgba(255,77,77,0.12);font-weight:600;font-size:15px;text-transform:uppercase;
-    color:var(--block);letter-spacing:0.02em}
-  .banner.passed{border-left-color:var(--pass);background:rgba(61,220,151,0.12);color:var(--pass)}
+  .banner{--accent:var(--block);position:relative;overflow:hidden;isolation:isolate;
+    margin:24px 0;padding:22px 24px;border-radius:16px;border:1px solid var(--border);
+    background:var(--surface);display:flex;align-items:center;justify-content:space-between;gap:24px}
+  .banner.passed{--accent:var(--pass)}
+  .banner::before{content:"";position:absolute;z-index:-1;inset:-160% 55% -160% -10%;
+    background:radial-gradient(closest-side,var(--accent),transparent);opacity:0.20;filter:blur(4px)}
+  .banner .verdict{font-weight:600;font-size:15px;text-transform:uppercase;letter-spacing:0.06em;
+    color:var(--accent)}
+  .banner .sub{font-family:var(--mono);font-size:12px;color:var(--fg-muted);margin-top:5px}
+  .banner .count{font-family:var(--mono);font-size:44px;line-height:1;color:var(--accent);
+    font-variant-numeric:tabular-nums;letter-spacing:-0.02em}
 
-  .cards{display:flex;flex-direction:column;gap:16px}
-  .card{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--block);
-    border-radius:8px;padding:16px;box-shadow:0 1px 0 rgba(255,255,255,0.03) inset}
-  .card.MUTATED{border-left-color:var(--warn)} .card.MISSING{border-left-color:var(--info)}
-  .card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-  .card-title{font-weight:600;font-size:15px;line-height:22px}
-  .badge{font-family:var(--mono);font-size:11px;text-transform:uppercase;border-radius:4px;
-    padding:2px 8px;background:rgba(255,77,77,0.15);color:var(--block)}
-  .badge.MUTATED{background:rgba(245,165,36,0.15);color:var(--warn)}
-  .badge.MISSING{background:rgba(76,141,255,0.15);color:var(--info)}
-  .row{display:flex;gap:12px;margin:4px 0}
-  .row .k{width:96px;flex:none;font-size:11px;text-transform:uppercase;color:var(--fg-muted);
-    letter-spacing:0.08em;padding-top:2px}
-  .row .v{font-family:var(--mono);font-size:13px;word-break:break-all}
-  .keydiff{background:var(--surface-2);border-radius:4px;padding:12px;margin-top:12px;
-    font-family:var(--mono);font-size:13px}
-  .keydiff div{display:flex;gap:12px}
-  .keydiff .who{color:var(--fg-muted);width:64px;flex:none}
-  .mismatch{color:var(--block)}
-  .narrative{margin-top:12px;padding-top:12px;border-top:1px solid var(--border);
-    color:var(--fg-dim);font-size:13px;display:flex;justify-content:space-between;gap:16px}
-  .narrative cite{font-style:normal;white-space:nowrap;color:var(--fg-dim);font-size:11px}
+  /* 분기 카드 — 벤토 그리드. 같은 직사각형을 세로로 쌓지 않는다.
+     각 카드의 주인공은 '무엇이 바뀌었나' 한 쌍이고, 나머지는 전부 보조로 내린다. */
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:20px}
+  .card{--accent:var(--block);position:relative;overflow:hidden;isolation:isolate;
+    background:var(--surface);border:1px solid var(--border);border-radius:16px;
+    padding:20px 20px 18px;display:flex;flex-direction:column;gap:14px}
+  .card.MUTATED{--accent:var(--warn)} .card.MISSING{--accent:var(--info)}
+  /* 색은 테두리가 아니라 빛으로 — 좌측 3px 막대가 가장 기성품처럼 보이던 부분이다 */
+  .card::before{content:"";position:absolute;z-index:-1;inset:-40% 40% 55% -20%;
+    background:radial-gradient(closest-side,var(--accent),transparent);opacity:0.22;
+    filter:blur(4px);pointer-events:none}
+  .card::after{content:"";position:absolute;z-index:-1;inset:0 0 auto 0;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,0.10),transparent)}
+
+  .card header{display:flex;align-items:center;justify-content:space-between}
+  .idx{font-family:var(--mono);font-size:11px;color:var(--fg-dim);letter-spacing:0.12em}
+  .badge{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.12em;
+    border-radius:999px;padding:4px 10px;color:var(--accent);
+    background:color-mix(in srgb,var(--accent) 14%,transparent);
+    border:1px solid color-mix(in srgb,var(--accent) 28%,transparent)}
+
+  /* 주인공: 값이 어떻게 바뀌었나 */
+  .shift{display:flex;flex-direction:column;gap:2px;font-family:var(--mono);
+    font-variant-numeric:tabular-nums}
+  .shift .cap{font-family:var(--ui);font-size:10px;letter-spacing:0.12em;text-transform:uppercase;
+    color:var(--fg-muted);margin-bottom:6px}
+  .shift .from{font-size:19px;color:var(--fg-dim);text-decoration:line-through;
+    text-decoration-color:var(--fg-dim);text-decoration-thickness:1px}
+  .shift .to{font-size:26px;line-height:1.15;color:var(--accent);letter-spacing:-0.01em}
+
+  .meta{display:flex;flex-direction:column;gap:3px;font-family:var(--mono);font-size:12.5px}
+  .meta .eff{color:var(--fg)}
+  .meta .loc{color:var(--fg-dim)}
+
+  .keys{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;
+    background:var(--surface-2);border-radius:10px;padding:9px 12px;color:var(--fg-dim)}
+  .keys .arr{color:var(--fg-dim)} .keys .k2{color:var(--accent)}
+
+  .narrative{margin-top:auto;padding-top:12px;border-top:1px solid var(--border);
+    color:var(--fg-dim);font-size:12.5px;line-height:18px}
+  .narrative cite{display:block;font-style:normal;margin-top:6px;color:var(--fg-dim);
+    opacity:0.7;font-size:10px;letter-spacing:0.1em;text-transform:uppercase}
 
   .cta{border-top:1px solid var(--border);margin-top:32px;padding:24px 0 48px}
-  pre{background:var(--surface-2);border-radius:4px;padding:16px;font-family:var(--mono);
+  pre{background:var(--surface-2);border-radius:12px;padding:16px;font-family:var(--mono);
     font-size:13px;overflow-x:auto;margin:12px 0}
   .cmt{color:var(--pass)} .dollar{color:var(--fg-dim)}
   .note{color:var(--warn);font-size:12px}
   .foot{color:var(--fg-dim);font-size:12px;margin-top:8px}
   .links{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap}
-  .links a{border:1px solid var(--border);border-radius:6px;padding:8px 16px;color:var(--fg);
+  .links a{border:1px solid var(--border);border-radius:999px;padding:9px 18px;color:var(--fg);
     text-decoration:none;font-size:14px}
   .links a:hover{border-color:var(--border-strong)}
 </style>
@@ -177,9 +204,12 @@ function render(){
   const banner = document.getElementById('banner');
   const n = block.counts.DUPLICATE;
   banner.className = 'banner' + (block.blocked ? '' : ' passed');
-  banner.textContent = block.blocked
-    ? `Deploy blocked — ${n} duplicate side effect${n===1?'':'s'}`
-    : 'Deploy allowed — 0 duplicate side effects';
+  banner.innerHTML = `
+    <div>
+      <div class="verdict">${block.blocked ? 'Deploy blocked' : 'Deploy allowed'}</div>
+      <div class="sub">duplicate side effect${n===1?'':'s'} · gate exit ${block.blocked ? 1 : 0}</div>
+    </div>
+    <div class="count">${n}</div>`;
 
   const note = document.getElementById('note');
   note.className = 'marker-note' + (block.divergences.length ? '' : ' clear');
@@ -197,20 +227,29 @@ function card(d, i, total){
   const el = document.createElement('div');
   el.className = 'card ' + d.kind;
   el.id = 'card-' + i;
-  const short = k => k ? k.slice(0,12) + '…' : '—';
+  const short = k => k ? k.slice(0,10) + '…' : '—';
+  const pad = n => String(n).padStart(2,'0');
+  const week = d.t == null ? '' : ' · week ' + Math.min(6, Math.floor(d.t*6)+1);
+  const fromV = JSON.stringify(d.past_value ?? '—').replace(/^"|"$/g,'');
+  const toV   = JSON.stringify(d.replay_value ?? '—').replace(/^"|"$/g,'');
   el.innerHTML = `
-    <div class="card-head">
-      <div class="card-title">Divergence ${i+1} / ${total}</div>
-      <div class="badge ${d.kind}">${d.kind}</div>
+    <header>
+      <span class="idx">${pad(i+1)} / ${pad(total)}</span>
+      <span class="badge ${d.kind}">${d.kind}</span>
+    </header>
+    <div class="shift">
+      <span class="cap">${d.mismatch_field || 'value'} changed</span>
+      <span class="from">${fromV}</span>
+      <span class="to">${toV}</span>
     </div>
-    <div class="row"><div class="k">Effect</div><div class="v">${d.target || d.tool_name}</div></div>
-    <div class="row"><div class="k">Run</div><div class="v">${d.run_id} · step ${d.step_index}</div></div>
-    <div class="row"><div class="k">Replay</div><div class="v">intent: NEW (not matched to any past effect)</div></div>
-    <div class="keydiff">
-      <div><span class="who">past</span><span>${short(d.past_key)}</span><span>${d.mismatch_field}=${JSON.stringify(d.past_value)}</span></div>
-      <div><span class="who">replay</span><span>${short(d.replay_key)}</span><span class="mismatch">${d.mismatch_field}=${JSON.stringify(d.replay_value)} ← mismatch</span></div>
+    <div class="meta">
+      <span class="eff">${d.target || d.tool_name}</span>
+      <span class="loc">${d.run_id} · step ${d.step_index}${week}</span>
     </div>
-    ${d.narrative ? `<div class="narrative"><span>${d.narrative}</span><cite>— generated summary</cite></div>` : ''}`;
+    <div class="keys">
+      <span>${short(d.past_key)}</span><span class="arr">→</span><span class="k2">${short(d.replay_key)}</span>
+    </div>
+    ${d.narrative ? `<p class="narrative">${d.narrative}<cite>generated summary</cite></p>` : ''}`;
   return el;
 }
 

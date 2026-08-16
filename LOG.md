@@ -5,7 +5,8 @@
 **실제 마감**: 2026-09-01 09:00 KST (Aug 31 17:00 PDT)
 **가용 시간 가정**: 하루 4~6시간 / 총 80~110시간
 
-**현재 Phase**: P5 (P0~P4 게이트 통과. 제출물 4종 중 3종 완료 — 영상만 업로드 대기)
+**현재 Phase**: 제출 완료 (2026-08-16, 사용자 확인). 이후는 심사 대기.
+**심사 발표**: 2026-10-08 10:00 PT / 10-09 02:00 KST
 **공개 저장소**: https://github.com/Kim-Hakseong/backstop (Apache-2.0, main, 태그 5개)
 **저장소 상태 (08-13)**: `PRD.md` 추적 해제 + **git 히스토리에서 완전 제거**(filter-branch, blob 4개 purge 확인). **push 후 원격 클론으로 재검증: 커밋·트리 양쪽에서 0건, API도 Not Found.**
 **배포 URL**: https://backstop-api-5nohynuexa-uc.a.run.app (별칭 https://backstop-api-911984605187.us-central1.run.app 도 200)
@@ -353,7 +354,7 @@
 - 목표: 3분 이내, 컷 3개 이하. 큐시트는 @SUBMISSION.md의 촬영 큐시트를 따른다(PRD는 비공개라 참조하지 않는다)
 - 완료 조건: 공개 URL (**완전 공개** YouTube/Vimeo — Rules 원문이 "publicly visible")
 - 예상: 4h (재촬영 포함) / 실소요: 3.5h
-- [~] **초안 완성, 업로드 대기.** `video-out/backstop_demo_gcloud_tts.mp4` — 3분 26초, 1920×1080, 나레이션 포함.
+- [x] **완료.** `video-out/backstop_demo_gcloud_tts.mp4` — 3분 26초, 1920×1080, 나레이션 포함.
   - **0:00–0:36 브라우저 실제 조작 녹화**: CDP screencast 로 헤드리스 크롬을 실제 클릭·스크롤. 대조군 `control v1` 클릭 → 초록 통과, 테마 토글까지 실동작.
   - **0:36–1:14 실제 셸 세션**: `pty` 로 bash 를 띄우고 키를 한 글자씩 흘려넣어 녹화. 타이핑은 셸이 에코한 것이고 출력·타이밍이 전부 실제다.
   - **1:14–2:50 라이브 크래시**: 배포된 Cloud Run 인스턴스에 `/admin/kill` 무장 → Pub/Sub 발행 → 인스턴스 사망 → 재전달 → 재개. 검증 출력 `tool_call 7 / tool_result 6 / effects 6 / unique 6 / duplicates 0`.
@@ -362,7 +363,7 @@
 - **나레이션**: Google Cloud TTS `en-US-Chirp3-HD-Charon` (남성). 17문장 1,851자, **약 $0.06**. 대본은 `video-out/narration_script.json`.
 - 🔴 **음성 폴백 사고**: 처음엔 macOS `say -v Alex` 를 썼는데 **Alex 가 설치돼 있지 않아 한국어 여성 음성(Yuna)으로 조용히 대체**됐다. 명령은 종료 코드 0을 반환해서 성공처럼 보였다. PCM 해시를 비교해보니 `Alex`·`Tom`·`Yuna` 가 완전히 동일한 오디오였다. 이후 Cloud TTS 로 옮겨 음성 이름을 API 에 명시하는 방식이라 같은 사고가 구조적으로 불가능해졌다.
 - 🔴 **영상에서 R7 위반 직전**: 나레이션이 "twenty four seconds"라고 말하는데 화면은 "resumed after 28 seconds"였다(리허설 값을 대본에 그대로 씀). 재녹화마다 달라지는 값이라 특정 숫자를 말하지 않는 문장으로 교체.
-- ⚠️ **남은 것**: YouTube 완전 공개 업로드. 나레이션이 TTS라 직접 녹음으로 교체 가능(문장별 파일만 주면 타이밍 재배치).
+- 08-16 업로드 및 제출 완료(사용자 확인). 나레이션은 Cloud TTS 버전으로 확정.
 - ⚠️ **08-12 Overview 재확인 결과 원문은 "approximately 4-minute demo video proving backend runs on Google Cloud"다.** PRD·SUBMISSION은 3분으로 잡혀 있다. 3분은 4분 이하라 위반은 아니지만, 원문이 **"백엔드가 Google Cloud에서 돈다는 증명"**을 명시적으로 요구한다 — 현재 큐시트에는 배포 URL이 마지막 정지 화면에만 나온다. 라이브 Cloud Run 응답을 화면에 넣는 컷이 필요하다. T5.5에서 Rules 전문으로 최종 확인한다.
 - ✅ **08-12 해소.** 3분 구조 유지. @SUBMISSION.md 큐시트에 `1:50–1:55` Cloud Run 콘솔 + 라이브 `.run.app` 호출 5초 컷 삽입(아키텍처 구간 25→20초에서 차용). 2:30–3:00 클라이맥스 불변. 촬영 실패 시 콘솔 요청 로그 화면으로 대체.
 
@@ -406,7 +407,7 @@
 - 목표: Devpost 제출 폼 작성, 트랙 선택(Fortified Enterprise Fleet), 4종 첨부
 - 완료 조건: 제출 페이지에서 "Submitted" 상태 확인
 - 예상: 1h
-- [ ]
+- [x] **08-16 제출 완료 (사용자가 Devpost에서 직접 확인).**
 - ⚠️ 08-31 21:00 KST까지. 마지막 날 아침에 시작하지 않는다
 
 ### T6.5 데모 리허설 3회차 (제출 후)
@@ -434,6 +435,34 @@
 | 08-25 | 게이트 미완성 | 원장 + 타임라인 시각화만으로 축소 제출. 미제출보다 낫다 |
 | 08-27 | 콘솔 미완성 | 터미널 TUI + 정적 SVG 타임라인으로 대체 |
 | 08-29 | 영상 미완성 | 화면 녹화 + 자막만. 나레이션 포기 |
+
+---
+
+## 최종 제출 상태 (2026-08-16)
+
+**제출물 4종**
+
+| 항목 | 상태 | 확인 주체 |
+|---|---|---|
+| 코드 저장소 | https://github.com/Kim-Hakseong/backstop (public, MIT, 커밋 38 · 태그 5) | 에이전트 검증 |
+| 아키텍처 다이어그램 | `docs/architecture.svg` + `docs/architecture.png` (3200×1800) | 에이전트 검증 |
+| Write-up 5섹션 | `SUBMISSION.md` — 영문, 플레이스홀더 0개, 실측 수치 | 에이전트 검증 |
+| 배포 URL | https://backstop-api-5nohynuexa-uc.a.run.app/ (`/`, `/health`, `/gate.json` 전부 200) | 에이전트 검증 |
+| 데모 영상 | 3:26, `video-out/backstop_demo_gcloud_tts.mp4` → YouTube 업로드 | **사용자 확인** |
+| Devpost "Submitted" | 트랙 = The Fortified Enterprise Fleet | **사용자 확인** |
+
+에이전트가 볼 수 없는 두 항목(YouTube 공개 설정, Devpost 제출 페이지)은 사용자 확인에 근거한다.
+
+**최종 실측치** (`make bench`, 08-12)
+- 6주 · run 4 · 원장 이벤트 1,094 · 재생 스텝 42 · 과거 부작용 42
+- 로드+재생+판정 **1.7ms** · 재생 중 외부 호출 **0** · 판정 경로 LLM 호출 **0**
+- 차단된 중복 부작용 **3** · 게이트 종료 코드 1 (v1 대조군은 0건 / 코드 0)
+- 테스트 **154건** 통과
+
+**스프린트 요약**: 계획은 19일(08-12~08-31)이었고 P0~P4 게이트를 08-12 하루에 전부 통과했다.
+가장 큰 소득은 기능이 아니라 **배포본에서만 드러난 버그 2건**이다 — 동시 전달에서 중복 부작용이
+실제로 새어나간 것과, 커서만 전진해 스텝이 조용히 사라진 것. 방향이 정반대인 이 두 사고가
+게이트의 `DUPLICATE`/`MISSING` 분류의 실증 근거가 됐고, write-up 도입부가 됐다.
 
 ---
 

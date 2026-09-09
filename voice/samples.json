@@ -1,0 +1,12 @@
+{
+  "prompt_text": "안녕하세요. 저는 지금 제 목소리를 녹음하고 있습니다. 이 녹음은 음성 합성 샘플을 만들기 위한 것입니다.",
+  "samples": [
+    {"id": "en_intro",    "text": "Hi, I'm an indie developer from Seoul. I design, build and ship my own software products."},
+    {"id": "en_pitch",    "text": "Backstop replays six weeks of your agent's ledger against a new version, and blocks the deploy when a side effect would run twice."},
+    {"id": "en_demo",     "text": "Let me walk you through the demo. On the left is the recorded ledger. On the right is what the new agent would have done."},
+    {"id": "en_numbers",  "text": "We processed twelve thousand events in about ninety seconds, and found three divergences worth looking at."},
+    {"id": "en_question", "text": "So, what would you actually want this tool to do on the day it catches something real?"},
+    {"id": "en_calm",     "text": "Take your time with this part. There is no rush, and the details matter more than the speed."},
+    {"id": "ko_intro",    "text": "안녕하세요, 서울에서 개인 소프트웨어 제품을 만드는 개발자입니다."}
+  ]
+}

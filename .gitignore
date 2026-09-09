@@ -15,3 +15,8 @@ PROMPT_ralph.md
 
 # 촬영 산출물 — 유튜브로 올라가는 것이지 저장소에 넣을 것이 아니다
 video-out/
+
+# voice cloning toolkit
+voice/models
+voice/out
+voice/.venv

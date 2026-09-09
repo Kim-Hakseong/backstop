@@ -17,6 +17,29 @@ TARGET_SR = 24000
 GOOD_SECONDS = (8.0, 15.0)
 
 
+def load(path):
+    """Read the recording, falling back to PyAV for phone formats.
+
+    libsndfile handles wav and flac and, on recent builds, mp3 -- but not the
+    AAC inside an .m4a, which is what a phone voice memo actually is. PyAV ships
+    its own ffmpeg, so this stays a pip install rather than a system dependency.
+    """
+    try:
+        return sf.read(path, dtype="float32", always_2d=False)
+    except Exception:
+        import av
+
+        with av.open(path) as container:
+            stream = container.streams.audio[0]
+            resampler = av.AudioResampler(format="fltp", layout="mono",
+                                          rate=stream.codec_context.sample_rate)
+            chunks = []
+            for frame in container.decode(stream):
+                for out in resampler.resample(frame):
+                    chunks.append(out.to_ndarray().reshape(-1))
+            return np.concatenate(chunks), stream.codec_context.sample_rate
+
+
 def to_mono(x):
     return x if x.ndim == 1 else x.mean(axis=1)
 
@@ -57,7 +80,7 @@ def normalize(x, target_rms=0.06, peak_ceiling=0.95):
     return x.astype(np.float32)
 
 
-def inspect(x, sr, raw_peak):
+def inspect(x, sr, clipped_fraction):
     """Report the things that make a clone come out wrong."""
     seconds = len(x) / sr
     notes = []
@@ -67,8 +90,9 @@ def inspect(x, sr, raw_peak):
     elif seconds > GOOD_SECONDS[1]:
         notes.append(f"clip is {seconds:.1f}s, longer than {GOOD_SECONDS[1]:.0f}s "
                      "-- trim it with --start/--seconds, generation slows down")
-    if raw_peak >= 0.999:
-        notes.append("the source clipped -- re-record with lower input gain")
+    if clipped_fraction > 5e-4:
+        notes.append(f"{clipped_fraction * 100:.2f}% of the source sits at full "
+                     "scale -- re-record with lower input gain")
 
     # crude noise floor: the quietest 10% of 20 ms frames against the loudest
     win = max(1, int(sr * 0.02))
@@ -76,7 +100,13 @@ def inspect(x, sr, raw_peak):
     if frames > 10:
         rms = np.sqrt((x[: frames * win].reshape(frames, win) ** 2).mean(axis=1) + 1e-12)
         floor_db = 20 * np.log10(np.percentile(rms, 10) / (rms.max() + 1e-12) + 1e-12)
-        if floor_db > -35:
+        spread_db = 20 * np.log10(np.percentile(rms, 95) /
+                                  (np.percentile(rms, 5) + 1e-12) + 1e-12)
+        if spread_db < 15:
+            notes.append(f"the envelope only spans {spread_db:.0f} dB -- the "
+                         "recorder's automatic gain flattened the pauses, and the "
+                         "clone inherits that compressed feel")
+        elif floor_db > -35:
             notes.append(f"noise floor is {floor_db:.0f} dB below speech -- "
                          "record somewhere quieter, the clone will inherit the hiss")
     return seconds, notes
@@ -90,8 +120,8 @@ def main():
     ap.add_argument("--seconds", type=float, default=None, help="length to keep")
     args = ap.parse_args()
 
-    x, sr = sf.read(args.source, dtype="float32", always_2d=False)
-    raw_peak = float(np.abs(x).max()) if x.size else 0.0
+    x, sr = load(args.source)
+    clipped = float((np.abs(x) > 0.995).mean()) if x.size else 0.0
     x = resample(to_mono(x), sr, TARGET_SR)
 
     if args.start:
@@ -100,7 +130,7 @@ def main():
         x = x[: int(args.seconds * TARGET_SR)]
 
     x = normalize(trim_silence(x, TARGET_SR))
-    seconds, notes = inspect(x, TARGET_SR, raw_peak)
+    seconds, notes = inspect(x, TARGET_SR, clipped)
 
     import os
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)

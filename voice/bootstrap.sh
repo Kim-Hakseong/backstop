@@ -35,9 +35,9 @@ fi
 
 echo "==> installing python packages"
 if command -v uv >/dev/null 2>&1; then
-  VIRTUAL_ENV=$PWD/.venv uv pip install -q sherpa-onnx soundfile numpy
+  VIRTUAL_ENV=$PWD/.venv uv pip install -q sherpa-onnx soundfile numpy av
 else
-  ./.venv/bin/pip install -q sherpa-onnx soundfile numpy
+  ./.venv/bin/pip install -q sherpa-onnx soundfile numpy av
 fi
 
 cat <<'DONE'

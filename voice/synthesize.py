@@ -43,27 +43,36 @@ def split_sentences(text):
     return [p for p in parts if p]
 
 
-def find_speed(tts, text, prompt, audio, sr, target_wps, speed, steps=4, attempts=3):
-    """Probe once for the speed this reference needs, and reuse it everywhere.
+def probe_duration(tts, text, prompt, audio, sr, speed):
+    """Length of the audio this speed would produce, generated as cheaply as possible.
 
-    Calibrating every sentence separately triples the work for an answer that
-    barely moves between them: the correction is a property of the reference
-    clip, not of the text. One probe runs at a low step count, and the speed it
-    finds is applied to every sample at full quality.
-
-    Duration responds to `speed` faster than linearly, empirically near
-    speed**-2, so the correction is damped by that exponent. Applying the raw
-    duration ratio overshoots into a drawl and then back into a gabble.
+    Duration is decided before the flow-matching sampler runs, so it does not
+    depend on the step count: 2 steps and 16 steps return byte-identical lengths.
+    That makes a 2-step probe a free measurement of what a 16-step generation
+    will do, which is what lets the search below afford several iterations.
     """
-    words = max(1, len(text.split()))
-    for _ in range(attempts):
-        out = tts.generate(text, prompt, audio, sr, speed=speed, num_steps=steps)
-        wps = words / (len(out.samples) / out.sample_rate)
-        print("  probe speed=%.2f -> %.2f w/s" % (speed, wps))
-        if abs(wps - target_wps) <= WPS_TOLERANCE:
-            break
-        speed = max(0.3, min(2.5, speed * (wps / target_wps) ** -0.5))
-    return speed
+    out = tts.generate(text, prompt, audio, sr, speed=speed, num_steps=2)
+    return len(out.samples) / out.sample_rate
+
+
+def fit_speed(tts, text, prompt, audio, sr, target_wps, lo=0.5, hi=1.6, iters=7):
+    """Bisect for the speed that lands this sentence on the target pace.
+
+    `speed` is a violent knob on this checkpoint -- on one test sentence 0.90
+    gave 6.66 s and 1.08 gave 2.43 s, a 2.7x swing for a 20% input change, and
+    the exponent keeps steepening. Nothing derived from a single measurement
+    survives that, and one speed shared across sentences produced a set ranging
+    from 2.4 to 4.7 words per second. Duration is monotone in speed though, so
+    bisection is stable where extrapolation is not.
+    """
+    target = max(1, len(text.split())) / target_wps
+    for _ in range(iters):
+        mid = (lo + hi) / 2
+        if probe_duration(tts, text, prompt, audio, sr, mid) > target:
+            lo = mid  # still too slow, push speed up
+        else:
+            hi = mid
+    return (lo + hi) / 2
 
 
 def build_tts(model_dir, threads, guidance):
@@ -106,14 +115,14 @@ def main():
     ap.add_argument("--threads", type=int, default=os.cpu_count() or 4)
     ap.add_argument("--steps", type=int, default=16,
                     help="flow-matching steps; 8 is fast, 32 is smoother")
-    ap.add_argument("--speed", type=float, default=0.8,
-                    help="starting speed; pacing is corrected from here")
+    ap.add_argument("--speed", type=float, default=1.0,
+                    help="fixed speed, only used with --no-calibrate")
     ap.add_argument("--wps", type=float, default=NATURAL_WPS,
                     help="target words per second; 2.6 is unhurried narration")
     ap.add_argument("--guidance", type=float, default=1.5,
                     help="classifier-free guidance; higher tracks the text harder")
     ap.add_argument("--no-calibrate", action="store_true",
-                    help="use --speed as given, do not measure and retry")
+                    help="use --speed as given, skip the pacing search")
     ap.add_argument("--whole", action="store_true",
                     help="one pass over the whole text instead of per sentence")
     args = ap.parse_args()
@@ -143,13 +152,6 @@ def main():
         if any("\uac00" <= c <= "\ud7a3" for c in item["text"]):
             item["text"] = romanize(item["text"])
 
-    speed = args.speed
-    if not args.no_calibrate:
-        probe = max((c for it in items for c in split_sentences(it["text"])),
-                    key=lambda c: len(c.split()))
-        speed = find_speed(tts, probe, prompt, audio, sr, args.wps, speed)
-        print("  using speed=%.2f\n" % speed)
-
     os.makedirs(args.out_dir, exist_ok=True)
     manifest = []
     for item in items:
@@ -161,6 +163,8 @@ def main():
         chunks = [item["text"]] if args.whole else split_sentences(item["text"])
         pieces, rate = [], 24000
         for index, chunk in enumerate(chunks):
+            speed = (args.speed if args.no_calibrate else
+                     fit_speed(tts, chunk, prompt, audio, sr, args.wps))
             out = tts.generate(chunk, prompt, audio, sr,
                                speed=speed, num_steps=args.steps)
             rate = out.sample_rate

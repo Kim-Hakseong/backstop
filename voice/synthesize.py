@@ -90,6 +90,34 @@ def fit_speed(tts, text, prompt, audio, sr, target_wps, lo=0.5, hi=1.6, iters=7,
     return (lo + hi) / 2
 
 
+def best_take(tts, text, prompt, audio, sr, speed, steps, takes, judge, reference):
+    """Generate `takes` candidates and keep the one that sounds most like the
+    reference speaker.
+
+    Zero-shot cloning is not repeatable. Generating the same sentence three
+    times from the same clip produced speaker similarities of 0.74, 0.32 and
+    0.32 -- the spread between takes of one setting was larger than the spread
+    between 4-second and 18-second reference clips. Averaging that away is not
+    an option when the deliverable is a single file, so the fix is to draw
+    several and keep the best one.
+    """
+    if takes <= 1 or judge is None:
+        return tts.generate(text, prompt, audio, sr, speed=speed, num_steps=steps)
+
+    from similarity import embed, similarity
+
+    best, best_score = None, -2.0
+    for _ in range(takes):
+        out = tts.generate(text, prompt, audio, sr, speed=speed, num_steps=steps)
+        score = similarity(reference,
+                           embed(judge, np.array(out.samples, dtype=np.float32),
+                                 out.sample_rate))
+        if score > best_score:
+            best, best_score = out, score
+    print("    best of %d takes: similarity %.3f" % (takes, best_score))
+    return best
+
+
 def build_tts(model_dir, threads, guidance):
     import sherpa_onnx as so
 
@@ -130,6 +158,8 @@ def main():
     ap.add_argument("--seconds", type=float, default=None,
                     help="target duration for --text, overriding the pace model")
     ap.add_argument("--threads", type=int, default=os.cpu_count() or 4)
+    ap.add_argument("--takes", type=int, default=1,
+                    help="candidates per sentence; the closest to the reference wins")
     ap.add_argument("--steps", type=int, default=16,
                     help="flow-matching steps; 8 is fast, 32 is smoother")
     ap.add_argument("--speed", type=float, default=1.0,
@@ -158,6 +188,12 @@ def main():
     print(f"prompt:    {prompt}\n")
 
     tts = build_tts(args.model_dir, args.threads, args.guidance)
+
+    judge = reference = None
+    if args.takes > 1:
+        from similarity import extractor, embed
+        judge = extractor(threads=args.threads)
+        reference = embed(judge, audio, sr)
     items = ([{"id": "single", "text": args.text, "seconds": args.seconds}]
              if args.text else spec["samples"])
 
@@ -187,8 +223,8 @@ def main():
             speed = (args.speed if args.no_calibrate else
                      fit_speed(tts, chunk, prompt, audio, sr, args.wps,
                                target_seconds=share))
-            out = tts.generate(chunk, prompt, audio, sr,
-                               speed=speed, num_steps=args.steps)
+            out = best_take(tts, chunk, prompt, audio, sr, speed, args.steps,
+                            args.takes, judge, reference)
             rate = out.sample_rate
             if index:
                 pieces.append(np.zeros(int(SENTENCE_PAUSE * rate), dtype=np.float32))

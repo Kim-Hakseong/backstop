@@ -55,7 +55,22 @@ def probe_duration(tts, text, prompt, audio, sr, speed):
     return len(out.samples) / out.sample_rate
 
 
-def fit_speed(tts, text, prompt, audio, sr, target_wps, lo=0.5, hi=1.6, iters=7):
+def pace_target(text, target_wps):
+    """Seconds this text should take.
+
+    Whitespace words are meaningless for Chinese and Japanese, where one line
+    can be a single "word" and the pacing search then aims at nonsense. CJK
+    characters are counted individually and priced at a syllable each, which is
+    roughly what they are; Latin words are priced at 1.6 syllables.
+    """
+    cjk = sum(1 for c in text if "\u3040" <= c <= "\u30ff" or "\u4e00" <= c <= "\u9fff")
+    words = len([w for w in text.split() if any(ch.isalpha() for ch in w)])
+    syllables = cjk + 1.6 * words
+    return syllables / (target_wps * 1.6)
+
+
+def fit_speed(tts, text, prompt, audio, sr, target_wps, lo=0.5, hi=1.6, iters=7,
+              target_seconds=None):
     """Bisect for the speed that lands this sentence on the target pace.
 
     `speed` is a violent knob on this checkpoint -- on one test sentence 0.90
@@ -65,7 +80,7 @@ def fit_speed(tts, text, prompt, audio, sr, target_wps, lo=0.5, hi=1.6, iters=7)
     from 2.4 to 4.7 words per second. Duration is monotone in speed though, so
     bisection is stable where extrapolation is not.
     """
-    target = max(1, len(text.split())) / target_wps
+    target = target_seconds or pace_target(text, target_wps)
     for _ in range(iters):
         mid = (lo + hi) / 2
         if probe_duration(tts, text, prompt, audio, sr, mid) > target:
@@ -112,6 +127,8 @@ def main():
     ap.add_argument("--prompt-romaja", default=None,
                     help="hand-written romanization, skips romanize.py")
     ap.add_argument("--text", default=None, help="synthesize one line and exit")
+    ap.add_argument("--seconds", type=float, default=None,
+                    help="target duration for --text, overriding the pace model")
     ap.add_argument("--threads", type=int, default=os.cpu_count() or 4)
     ap.add_argument("--steps", type=int, default=16,
                     help="flow-matching steps; 8 is fast, 32 is smoother")
@@ -141,8 +158,8 @@ def main():
     print(f"prompt:    {prompt}\n")
 
     tts = build_tts(args.model_dir, args.threads, args.guidance)
-    items = ([{"id": "single", "text": args.text}] if args.text
-             else spec["samples"])
+    items = ([{"id": "single", "text": args.text, "seconds": args.seconds}]
+             if args.text else spec["samples"])
 
     # The checkpoint is Chinese/English. Korean target text is dropped token by
     # token and comes back as a fraction of a second of noise, so romanize it
@@ -163,8 +180,13 @@ def main():
         chunks = [item["text"]] if args.whole else split_sentences(item["text"])
         pieces, rate = [], 24000
         for index, chunk in enumerate(chunks):
+            share = item.get("seconds")
+            if share:
+                share = share * pace_target(chunk, args.wps) / max(
+                    1e-6, sum(pace_target(c, args.wps) for c in chunks))
             speed = (args.speed if args.no_calibrate else
-                     fit_speed(tts, chunk, prompt, audio, sr, args.wps))
+                     fit_speed(tts, chunk, prompt, audio, sr, args.wps,
+                               target_seconds=share))
             out = tts.generate(chunk, prompt, audio, sr,
                                speed=speed, num_steps=args.steps)
             rate = out.sample_rate
@@ -175,7 +197,7 @@ def main():
         samples = np.concatenate(pieces)
         elapsed = time.time() - started
         seconds = len(samples) / rate
-        words = len(item["text"].split())
+        words = pace_target(item["text"], args.wps) * args.wps
 
         path = os.path.join(args.out_dir, f"{item['id']}.wav")
         sf.write(path, samples, rate)

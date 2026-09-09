@@ -19,13 +19,11 @@ if [ ! -d "$MODELS/$ZIPVOICE" ]; then
   rm -f "$MODELS/$ZIPVOICE.tar.bz2"
 fi
 
-# sherpa-onnx wants `word phone phone ...`; the shipped pinyin.raw carries a
-# log-probability in column two, which the lexicon loader reads as a phone and
-# rejects one warning at a time -- tens of thousands of them. Strip the column.
+# The model ships pinyin.raw, not the lexicon.txt it asks for. See
+# build_lexicon.py -- getting this wrong drops every Chinese character silently.
 if [ ! -f "$MODELS/$ZIPVOICE/lexicon.txt" ]; then
   echo "==> building lexicon.txt from pinyin.raw"
-  awk '{printf "%s", $1; for (i = 3; i <= NF; i++) printf " %s", $i; print ""}' \
-    "$MODELS/$ZIPVOICE/pinyin.raw" > "$MODELS/$ZIPVOICE/lexicon.txt"
+  python3 build_lexicon.py "$MODELS/$ZIPVOICE"
 fi
 
 if [ ! -d .venv ]; then

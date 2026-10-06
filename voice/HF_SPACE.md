@@ -1,5 +1,8 @@
 # Hugging Face Space에 올리기
 
+> 자기 GPU가 있으면 `voice/local_gpu/`를 쓰세요. 더 빠르고, 할당량이 없고,
+> 녹음이 남의 서버로 나가지 않습니다. 이 문서는 GPU가 없을 때의 경로입니다.
+
 CPU 파이프라인의 한계는 언어입니다. ZipVoice 체크포인트는 중국어와 영어만
 진짜로 하고, espeak 음성이 `en-us`로 하드코딩돼 있어 나머지는 전부 근사치입니다.
 Chatterbox Multilingual은 23개 언어를 실제로 지원하고 MIT 라이선스라 상업

@@ -1,0 +1,22 @@
+{
+  "prompt_text": "안녕하세요. 저는 제 목소리로 음성 샘플을 만들고 있습니다. 오늘 날씨는 맑고 바람이 조금 불었습니다. 열두 시 삼십 분에 회의를 시작하겠습니다.",
+  "samples": [
+    {"id": "01_hook",
+     "text": "Most projects in this hackathon show you what an agent accomplishes. Backstop takes the opposite side. It shows you the deploy that got blocked."},
+
+    {"id": "02_problem",
+     "text": "Two things went wrong in our own system while we were building it. The same email went out twice. And a workflow step vanished, while the agent reported that it was complete. Both times, the unit tests were green."},
+
+    {"id": "03_insight",
+     "text": "No human could have caught either one. There is nowhere to ask whether a purchase order went out twice, and when a workflow says done, nothing contradicts it."},
+
+    {"id": "04_what",
+     "text": "So Backstop records every tool call your agent makes into an append-only ledger. Before a new version ships, it rewinds six weeks of that ledger against the new code, and computes which side effects this version would run again."},
+
+    {"id": "05_verdict",
+     "text": "On our seed ledger, the answer is three duplicate purchase orders. The gate returns exit code one, and the deploy is blocked. One duplicate is enough."},
+
+    {"id": "06_close",
+     "text": "The model decides nothing here. The verdict is set arithmetic, a pure function, with unit tests attached. Take the language model out entirely, and deploy blocked is still deploy blocked."}
+  ]
+}
